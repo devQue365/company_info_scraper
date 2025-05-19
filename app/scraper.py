@@ -5,6 +5,90 @@ import pandas as pd
 import csv
 import feedparser
 from newspaper import Article
+import time
+# main scraping libraries / modules
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from app.Parser import customizedParser
+mock_header = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+def extract_about(company_name):
+
+    # wikipidea uses '_' instead of ' ' like apple_inc
+    url = f"https://en.wikipedia.org/wiki/{(company_name + " company").replace(' ', '_')}"
+    try:
+        # get the response
+        response = requests.get(url, headers=mock_header)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # select paragraph tag
+        p = soup.select('p')
+        for each_para in p:
+            # select only valuable text
+            if(len(each_para.text.strip()) > 150):
+                return each_para.text.strip()
+        return "Not Available"
+    except Exception as e:
+        return "Not Available"
+
+def extract_salary(company_name, job_title):
+    options = Options()
+    options.add_argument("--disable-gpu")
+    options.add_argument("--headless")
+    driver = webdriver.Chrome(options = options)
+    url = f"https://www.levels.fyi/companies/{company_name}/salaries/{job_title.replace(' ','-')}"
+    driver.get(url)
+    driver.maximize_window()
+    
+    try:
+        # Wait for the clickable button
+        wait = WebDriverWait(driver, 10)
+        view_more_levels = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@class='MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textNeutral MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorNeutral MuiButton-root MuiButton-text MuiButton-textNeutral MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorNeutral css-y5b368']")))
+        view_more_levels.click()
+        print('clicked sir')
+        time.sleep(2)
+    except Exception as e:
+        pass
+    # get the raw html
+    response = driver.page_source
+    soup = BeautifulSoup(response, 'html.parser')
+    driver.close()
+    # get the table
+    table = soup.find('table', class_ = 'MuiTable-root css-1f6fkxk')
+    if not table:
+        return None
+    # print('table found')
+    result = []
+    # find tbody
+    try:
+        tbody = table.find('tbody', class_ = 'MuiTableBody-root job-family_tableBody__MaiIw css-1xnox0e')
+        if not tbody:
+            return None
+        # print('found tbody')
+        # find all rows
+        rows = tbody.find_all('tr', class_ = 'MuiTableRow-root job-family_bodyRow__WuAug css-140sacz')
+        # traver each row
+        for row in rows:
+            # get columns as td value
+            col = row.find_all('td', class_ = 'MuiTableCell-root MuiTableCell-body MuiTableCell-alignLeft MuiTableCell-sizeMedium css-k1mugk')
+            # we want minimum results
+            if len(col) >= 5:
+                salary_record = {
+                    'level': col[0].get_text(strip = True),
+                    'Total': col[1].get_text(strip = True),
+                    'Base': col[2].get_text(strip = True),
+                    'Stock (/yr)': col[3].get_text(strip = True),
+                    'Bonus': col[4].get_text(strip = True)
+                }
+                result.append(salary_record)
+        return result
+    except Exception as e:
+        return None
 def extract_ticker(company_name):
     url = f"https://query1.finance.yahoo.com/v1/finance/search?q={company_name}"
     mock_header = {
@@ -18,7 +102,7 @@ def extract_ticker(company_name):
     return None
 
 
-def extract_stock_data(t_object, period = 'max'): 
+def extract_stock_data(t_object, period = '1d'): 
     # fetch data accoding to your need
     data = t_object.history(period = period)
     # return the data
@@ -53,5 +137,3 @@ def extract_news(company_name):
         # Add to the main container
         container.append(data)
     return container
-
-
