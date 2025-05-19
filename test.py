@@ -30,7 +30,7 @@ def extract_location(t_object):
     return {
         'Location': info['address1'], 
         'City': info['city'], 
-        'State': info['state'] if 'state' in info else None,
+        'State': info['state'] if 'state' in info else 'NAN',
         'Zip': info['zip'],
         'Country': info['country']
     }
@@ -91,5 +91,5 @@ while(True):
         print(f"Published on {news[1]}")
         print(f"Author : {news[2]}")
         print(f"{news[3]}\n{news[4]}\n\n")
-    system('pause')
+    system('wait')
     # system('clear')
