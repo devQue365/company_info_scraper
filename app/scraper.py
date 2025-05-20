@@ -13,29 +13,67 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import undetected_chromedriver as uc
 from app.Parser import customizedParser
 mock_header = {
         "User-Agent": "Mozilla/5.0"
     }
 
-def extract_about(company_name):
+# def extract_about(company_name):
+#     # wikipidea uses '_' instead of ' ' like apple_inc
+#     url = f"https://en.wikipedia.org/wiki/{company_name}"
+#     try:
+#         # get the response
+#         response = requests.get(url, headers=mock_header)
+#         soup = BeautifulSoup(response.text, 'html.parser')
+#         # select paragraph tag
+#         p = soup.select('p')
+#         for each_para in p:
+#             # select only valuable text
+#             if(len(each_para.text.strip()) > 150):
+#                 return each_para.text.strip()
+#         return "Not Available"
+#     except Exception as e:
+#         return "Not Available"
 
-    # wikipidea uses '_' instead of ' ' like apple_inc
-    url = f"https://en.wikipedia.org/wiki/{(company_name + " company").replace(' ', '_')}"
+def extract_about(company_name):
+    options = uc.ChromeOptions()
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    # if(headless):
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--log-level=3") 
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage") 
+    options.add_argument("--disable-blink-features=AutomationControlled") 
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-backgrounding-occluded-windows") 
+    options.add_argument("--disable-renderer-backgrounding")  
+    options.add_argument("--blink-settings=imagesEnabled=false")
+    driver = webdriver.Chrome(options = options)
+    # sanitize the query
+    company_name = company_name.replace('+',' plus ').replace('-',' minus ')
+    url = f"https://www.google.com/search?q={company_name.replace(' ', '+')}"
+    # url = f"https://www.google.com/search?q={company}"
+    driver.get(url)
     try:
-        # get the response
-        response = requests.get(url, headers=mock_header)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        wait = WebDriverWait(driver, 5)
+        # wiki_link = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@class='Q7PwXb a-no-hover-decoration ztWovc']")))
+        wiki_link = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@class='y171A Q7PwXb a-no-hover-decoration' or @class='Q7PwXb a-no-hover-decoration ztWovc']")))
+        wiki_link.click()
+        # wait for sometime
+        time.sleep(5)
+        wiki_src = driver.page_source
+        soup = BeautifulSoup(wiki_src, 'html.parser')
         # select paragraph tag
         p = soup.select('p')
         for each_para in p:
             # select only valuable text
             if(len(each_para.text.strip()) > 150):
                 return each_para.text.strip()
-        return "Not Available"
     except Exception as e:
-        return "Not Available"
-
+        return None
 def extract_salary(company_name, job_title):
     options = Options()
     options.add_argument("--disable-gpu")
