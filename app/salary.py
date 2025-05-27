@@ -26,13 +26,15 @@ def jsearch(company, job_title, location, API_KEY=None):
     res = json.loads(data)
     salary_data = res['data'][0]
     return {
-        "company": salary_data["company"],
+        "employer": salary_data["company"],
         "job_title": salary_data["job_title"],
         "location": salary_data["location"],
+        "currency": salary_data["salary_currency"],
+        'period': salary_data['salary_period'],
         "salary_range": f"{salary_data['salary_currency']} {int(salary_data['min_salary']):,} - {int(salary_data['max_salary']):,} per {salary_data['salary_period'].lower()}",
+        "base_salary": f"{salary_data['salary_currency']} {salary_data['median_base_salary']}",
         "median_salary": f"{salary_data['salary_currency']} {int(salary_data['median_salary']):,}",
-        "salary_count": salary_data["salary_count"],
-        "confidence": salary_data["confidence"]
+        "company_rating": None
     }
 
 # GlassDoor API - 200 requests / MO
@@ -66,43 +68,52 @@ def glassDoor(company, job_title, location, API_KEY=None):
     data = res.read()
     res = json.loads(data)
     # for glassDoor API we will be transforming the result into more structured form
-    def extract_salary_data(data: dict, company: str, location: str):
-        results = data.get('data', {}).get('aggregateSalaryResponse', {}).get('results', [])
-        company_rating = data.get('data', {}).get('employer', {}).get('overallRating', None)
-
-        entries = []
-
-        def fmt(salary):
-            return f"USD {int(round(salary)):,}" if salary else "N/A"
-
-        for job in results:
-            job_title = job.get('jobTitle', {}).get('text', '')
-
-            percentiles = job.get('totalPayStatistics', {}).get('percentiles', [])
-            mean_salary = job.get('totalPayStatistics', {}).get('mean', None)
-
-            perc_25 = next((p['value'] for p in percentiles if p.get('ident') == 'perc_25'), None)
-            perc_50 = next((p['value'] for p in percentiles if p.get('ident') == 'perc_50'), None)
-            perc_75 = next((p['value'] for p in percentiles if p.get('ident') == 'perc_75'), None)
-
+    def extract_salary(output_dict):
+        # container to store output
+        output = []
+        # get the location
+        location = output_dict.get('data',{}).get('aggregateSalaryResponse',{}).get('queryLocation',{}).get('name',{})
+        # go to the results section
+        results = output_dict.get('data',{}).get('aggregateSalaryResponse',{}).get('results')
+        # traverse each job
+        for result in results:
+            # get the employer
+            employer = result.get('employer', {}).get('name',{}) 
+            # get the job title
+            job_title = result.get('jobTitle').get('text', {})
+            # get the salary currency
+            currency = result.get('currency', {}).get('code',{})
+            # get the salary period
+            period = result.get('payPeriod', {})
+            # get the base mean
+            base_mean = result.get('basePayStatistics',{}).get('mean',{})
+            # get the percentiles (only useful to us - p25, p50, p75)
+            percentiles = result.get('totalPayStatistics',{}).get('percentiles',{}) # we get a list here
+            p25 = next((p['value'] for p in percentiles if p.get('ident') == 'P25'), None)
+            p50 = next((p['value'] for p in percentiles if p.get('ident') == 'P50'), None)
+            p75 = next((p['value'] for p in percentiles if p.get('ident') == 'P75'), None)
+            # get the salary range (p25 - p75) since, p50 is median
+            # get the median salary
+            median_salary = p50
+            # get mean salary
+            mean_salary = result.get('totalAdditionalPayStatistics',{}).get('mean', {})
+            # get the ratings
+            rating = result.get('employer', {}).get('ratings',{}).get('overallRating',{})
             entry = {
-                'company': company,
+                'employer': employer,
                 'job_title': job_title,
                 'location': location,
-                'salary_currency': 'USD',
-                'salary_period': 'annual',
-                'salary_range': f"{fmt(perc_25)} - {fmt(perc_75)}" if perc_25 and perc_75 else "N/A",
-                'median_salary': fmt(perc_50),
-                'mean_salary': fmt(mean_salary),
-                'company_rating': round(company_rating, 1) if company_rating else "N/A"
+                'currency': currency,
+                'period': period,
+                'salary_range': f'{currency} {p25} - {currency} {p75}',
+                'base_salary': f'{currency} {base_mean}',
+                'median_salary': f'{currency} {median_salary}',
+                'mean_salary': f'{currency} {mean_salary}',
+                'company_rating': rating
             }
-
-            entries.append(entry)
-
-        return entries
-
-    
-    salary_data = extract_salary_data(res, company, location)
+            output.append(entry)
+        return output
+    salary_data = extract_salary(res)
     return salary_data
 
 # Job_Salary_Data_API - 50 requests / MO
