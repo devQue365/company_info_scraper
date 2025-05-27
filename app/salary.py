@@ -4,7 +4,7 @@ from pprint import pprint
 import json
 
 # JSearch - 200 requests / MO
-def jsearch(company, job_title, location):
+def jsearch(company, job_title, location, API_KEY=None):
     conn = http.client.HTTPSConnection("jsearch.p.rapidapi.com")
     url = "jsearch.p.rapidapi.com"
     headers = {
@@ -36,7 +36,7 @@ def jsearch(company, job_title, location):
     }
 
 # GlassDoor API - 200 requests / MO
-def glassDoor(company, job_title, location):
+def glassDoor(company, job_title, location, API_KEY=None):
     conn = http.client.HTTPSConnection("glassdoor-real-time.p.rapidapi.com")
     headers = {
         'x-rapidapi-key': "7ee1c65373msh181b4a01f21d239p1e5ff7jsnc2f07e071e6d",
@@ -81,9 +81,9 @@ def glassDoor(company, job_title, location):
             percentiles = job.get('totalPayStatistics', {}).get('percentiles', [])
             mean_salary = job.get('totalPayStatistics', {}).get('mean', None)
 
-            p25 = next((p['value'] for p in percentiles if p.get('ident') == 'P25'), None)
-            p50 = next((p['value'] for p in percentiles if p.get('ident') == 'P50'), None)
-            p75 = next((p['value'] for p in percentiles if p.get('ident') == 'P75'), None)
+            perc_25 = next((p['value'] for p in percentiles if p.get('ident') == 'perc_25'), None)
+            perc_50 = next((p['value'] for p in percentiles if p.get('ident') == 'perc_50'), None)
+            perc_75 = next((p['value'] for p in percentiles if p.get('ident') == 'perc_75'), None)
 
             entry = {
                 'company': company,
@@ -91,8 +91,8 @@ def glassDoor(company, job_title, location):
                 'location': location,
                 'salary_currency': 'USD',
                 'salary_period': 'annual',
-                'salary_range': f"{fmt(p25)} - {fmt(p75)}" if p25 and p75 else "N/A",
-                'median_salary': fmt(p50),
+                'salary_range': f"{fmt(perc_25)} - {fmt(perc_75)}" if perc_25 and perc_75 else "N/A",
+                'median_salary': fmt(perc_50),
                 'mean_salary': fmt(mean_salary),
                 'company_rating': round(company_rating, 1) if company_rating else "N/A"
             }
@@ -105,3 +105,38 @@ def glassDoor(company, job_title, location):
     salary_data = extract_salary_data(res, company, location)
     return salary_data
 
+# Job_Salary_Data_API - 50 requests / MO
+def job_salary_data_api(company, job_title, location, API_KEY=None):
+    conn = http.client.HTTPSConnection("job-salary-data.p.rapidapi.com")
+    headers = {
+        'x-rapidapi-key': "7ee1c65373msh181b4a01f21d239p1e5ff7jsnc2f07e071e6d",
+        'x-rapidapi-host': "job-salary-data.p.rapidapi.com"
+    }
+    params = {
+        'company': company,
+        'job_title': job_title,
+        'location': location,
+        'location_type': 'ANY',
+        'years_of_experience': 'ALL'
+    }
+    url_safe_query = urllib.parse.urlencode(params)
+    conn.request("GET", f"/company-job-salary?{url_safe_query}", headers=headers)
+    res = conn.getresponse()
+    data = res.read()
+    res = json.loads(data)
+    salary_data = res['data'][0]
+    return {
+        'company': salary_data['company'],
+        'job_title': salary_data['job_title'],
+        'location': salary_data['location'],
+        'salary_currency': salary_data['salary_currency'],
+        'salary_period': salary_data['salary_period'],
+        'salary_range' : f'{salary_data['salary_currency']} {salary_data['min_salary']} - {salary_data['salary_currency']} {salary_data['max_salary']}',
+        'median_salary': f'{salary_data['salary_currency']} {salary_data['median_salary']}',
+        'mean_salary': f'{salary_data['salary_currency']} {round(salary_data['result']['totalPayStatistics']['mean'])}',
+        'company_rating': salary_data['result']['employer']['ratings']['overallRating']
+        # 'confidence': salary_data['confidence'],
+        # 'min_salary': salary_data['min_salary'],
+        # 'max_salary': salary_data['max_salary'],
+        # 'salary_count': salary_data['salary_count'],
+    }
