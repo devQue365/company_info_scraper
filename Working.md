@@ -14,7 +14,7 @@
 - The database consists of API Usage schema which hold records for each and every API we have used (One schema for each purpose like for Salary extraction).
 - Here, I have used SQLAlchemy for communicating between python and SQL server.
 - I have tried to implement the system with the goal of complete abstraction from the users.
-![API Working](api_snapshot.png)
-![SQLite snapshot](ss1.png)
+![API Working](/img/api_snapshot.png)
+![SQLite snapshot](/img/ss1.png)
 - Here as we can see Jsearch API could not fetch the result and thus, we hopped on to the next available active API (here GlassDoor API).<br>
 >**Note:** Here I have initially considered the ```used_requests = 0``` for simplicity and testing.
