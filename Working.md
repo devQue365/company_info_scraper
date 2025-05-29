@@ -2,7 +2,7 @@
 ## Switching Logic (Based on salary data)
 - Here in our API, I have used multiple APIs' to get the salary data based on the request made by the user.
 - The APIs' used are :-
-    - Jsearch API (Rapid API) <font color: 'red'>{200 requests / MO}</font>
+    - Jsearch API (Rapid API) {200 requests / MO}
     - GlassDoor API (Rapid API) {200 requests / MO}
     - JobSalaryData API (Rapid API) {50 requests / MO}
     - CareerJet API (Official website) {1000 requests / Hr}
