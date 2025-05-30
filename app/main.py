@@ -10,7 +10,7 @@ from app.salary import *
 from app.database import init_db, sessionLocal, start_db_session
 from sqlalchemy.orm import Session
 # API usage scheme
-from app.api_usage_scheme import select_provider
+from app.api_usage_scheme import select_provider, active_provider_list
 app = FastAPI()
 # ensure that db is ready ...
 init_db()
@@ -42,20 +42,38 @@ def get_active_api(db : Session = Depends(start_db_session)):
 @app.post('/company-info')
 def company_info(request : InfoRequest, db : Session = Depends(start_db_session)):
     # get the active provider
-    active_provider = select_provider(db) # get active provider
-    if not active_provider: # All exhausted
-        raise HTTPException(status_code=429, detail='ALl the APIs have reached their maximum limit.')
+    # active_provider = select_provider(db) # get active provider
+    # if not active_provider: # All exhausted
+        
         # salary = extract_salary(request.company_name,request.job_title)
     
     # now check for each level of API provider
-    if(active_provider.provider == 'jsearch'):
-        salary = jsearch(request.company_name, request.job_title,request.location)
-    elif(active_provider.provider == 'glassdoor'):
-        salary = glassDoor(request.company_name, request.job_title,request.location)
-    elif(active_provider.provider == 'jobsalarydata'):
-        salary = job_salary_data_api(request.company_name, request.job_title, request.location)
-    elif(active_provider.provider == 'careerjet'):
-        salary = carrer_jet_api(request.company_name, request.job_title, request.location)
+    def getSalaryData():
+        nonlocal db
+        nonlocal request
+        # get list of providers
+        active_providers = active_provider_list(db)
+        # if no active provider
+        if not active_providers:
+            raise HTTPException(status_code=429, detail='All the APIs have reached their maximum limit.')
+        for provider in active_providers:
+            if(provider.provider == 'jsearch'):
+                salary = jsearch(request.company_name, request.job_title,request.location)
+            elif(provider.provider == 'glassdoor'):
+                salary = glassDoor(request.company_name, request.job_title,request.location)
+            elif(provider.provider == 'jobsalarydata'):
+                salary = job_salary_data_api(request.company_name, request.job_title, request.location)
+            elif(provider.provider == 'careerjet'):
+                salary = carrer_jet_api(request.company_name, request.job_title, request.location)
+
+            # Analyze API response
+            if 'error' not in salary:
+                provider.used_calls+=1
+                db.commit()
+                return salary
+        return salary
+
+    salary = getSalaryData()
     ticker = extract_ticker(request.company_name)
     if(not ticker):
         return {"error" : "unidentified company"}
