@@ -4,3 +4,4 @@ from pydantic import BaseModel
 class InfoRequest(BaseModel):
     company_name : str
     job_title : str
+    location : str

@@ -92,4 +92,4 @@ while(True):
         print(f"Author : {news[2]}")
         print(f"{news[3]}\n{news[4]}\n\n")
     system('wait')
-    # system('clear')
+    system('clear')
