@@ -1,4 +1,5 @@
-# **Scraping API**
+# **<u>Scraping API</u>**
+**Author - Devansh Rathore**
 ## Switching Logic (Based on salary data)
 - Here in our API, I have used multiple APIs' to get the salary data based on the request made by the user.
 - The APIs' used are :-
