@@ -20,7 +20,7 @@ def gmapv2(company_name, location):
     def summarizedResults():
         nonlocal output_dict
         suggestions = output_dict.get('suggestions', [])
-        formatted = {}
+        result_dict = {}
 
         for idx, item in enumerate(suggestions, start=1):
             prediction = item.get('placePrediction', {})
@@ -30,7 +30,7 @@ def gmapv2(company_name, location):
             distance = prediction.get('distanceMeters')
             types = prediction.get('types', [])
 
-            formatted[f'office_{idx}'] = {
+            result_dict[f'office_{idx}'] = {
                 'name': name,
                 'address': address,
                 'place_id': place_id,
@@ -38,5 +38,5 @@ def gmapv2(company_name, location):
                 'types': types
             }
 
-        return formatted
+        return result_dict
     return summarizedResults()
