@@ -43,52 +43,42 @@ def glassDoor__v1(company, job_title, location):
             return {"error": "No job data found"}
         # for glassDoor API we will be transforming the result into more structured form
         def extract_salary(output_dict):
-            # container to store output
-            output = []
-            # get the location
+            results = output_dict['data']['aggregateSalaryResponse']['results']
+            company_name = next((result['employer']['name'] for result in results),None)
             location = output_dict.get('data',{}).get('aggregateSalaryResponse',{}).get('queryLocation',{}).get('name',{})
-            # go to the results section
-            results = output_dict.get('data',{}).get('aggregateSalaryResponse',{}).get('results')
-            # traverse each job
-            for result in results:
-                # get the employer
-                employer = result.get('employer', {}).get('name',{}) 
-                # get the job title
-                job_title = result.get('jobTitle').get('text', {})
-                # get the salary currency
-                currency = result.get('currency', {}).get('code',{})
-                # get the salary period
-                period = result.get('payPeriod', {})
-                # get the base mean
-                base_mean = result.get('basePayStatistics',{}).get('mean',{})
-                # get the percentiles (only useful to us - p25, p50, p75)
-                percentiles = result.get('totalPayStatistics',{}).get('percentiles',{}) # we get a list here
-                p25 = next((p['value'] for p in percentiles if p.get('ident') == 'P25'), None)
-                p50 = next((p['value'] for p in percentiles if p.get('ident') == 'P50'), None)
-                p75 = next((p['value'] for p in percentiles if p.get('ident') == 'P75'), None)
-                # get the salary range (p25 - p75) since, p50 is median
-                # get the median salary
-                median_salary = p50
-                # get mean salary
-                mean_salary = result.get('totalAdditionalPayStatistics',{}).get('mean', {})
-                # get the ratings
-                rating = result.get('employer', {}).get('ratings',{}).get('overallRating',{})
-                entry = {
-                    'employer': employer,
-                    'job_title': job_title,
-                    'location': location,
-                    'currency': currency,
-                    'period': period,
-                    'salary_range': f'{currency} {p25} - {currency} {p75}',
-                    'base_salary': f'{currency} {base_mean}',
-                    'median_salary': f'{currency} {median_salary}',
-                    'mean_salary': f'{currency} {mean_salary}',
-                    'company_rating': rating
-                }
-                output.append(entry)
-            return output
-        salary_data = extract_salary(res)
-        return salary_data
+            # Initialize results container
+            container = []
+            # we will traverse through all job entries
+            for job in results:
+                pay_period = job['payPeriod']
+                # we will only process annual salaries
+                if pay_period == 'ANNUAL':
+                    job_title = job['jobTitle']['text']
+                    currency = job['currency']['code']
+                    base_mean = job['basePayStatistics']['mean']
+                    total_additional_mean = job['totalAdditionalPayStatistics']['mean']
+                    percentiles = {p['ident']: p['value'] for p in job['totalPayStatistics']['percentiles']}
+                    
+                    # salary summary
+                    container.append({
+                        'company_name': company_name,
+                        'job_title': job_title,
+                        'location': location,
+                        # base salary ranges
+                        'min_base_salary': round(base_mean * 0.81, 2),  # estimated ~19% below mean
+                        'median_base_salary': round(base_mean, 2),
+                        'max_base_salary': round(base_mean * 1.23, 2),  # estimated ~23% above mean
+                        # general salary ranges
+                        'min_salary': round(percentiles.get('P25', 0), 2),
+                        'median_salary': round(percentiles.get('P50', 0), 2),
+                        'mean_salary': round(total_additional_mean, 2),
+                        'max_salary': round(percentiles.get('P75', 0), 2),
+                        'salary_period': 'YEAR',
+                        'salary_range': f"{currency} {round(percentiles.get('P25', 0), 2)} - {currency} {round(percentiles.get('P75', 0), 2)}",
+                        'salary_currency': currency
+                    })
+            return container
+        return extract_salary(res)
     except Exception as e:
         return {"error": "No job data found"}
 # [makes 2 X requests / API Call] -> 100 requests in total (practical threshold)
@@ -160,11 +150,15 @@ def glassDoor__v2(company, job_title, location):
                 'salary_period': data.get('salary_period', None),
                 'salary_range': f'{currency} {min_sal} - {currency} {max_sal}',
                 'salary_currency': data.get('salary_currency', None),
+                'use_case': 'glassDoor__v2'
             }
             return format
         return getStructuredFormat()
     except:
         return {"error": "Job data not available ..."}
+
+# Indeed API - 100 requests / MO
+
 # # JSearch - 200 requests / MO
 # def jsearch(company, job_title, location, API_KEY=None):
 #     try:
