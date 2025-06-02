@@ -6,6 +6,8 @@ from yfinance import Ticker
 import matplotlib.pyplot as plt
 # salary module
 from app.salary import *
+# location module
+from app.location import *
 # database module
 from app.database import init_db, sessionLocal, start_db_session
 from sqlalchemy.orm import Session
@@ -79,13 +81,14 @@ def company_info(request : InfoRequest, db : Session = Depends(start_db_session)
         return {"error" : "unidentified company"}
     t_object = Ticker(ticker)
     about = extract_about(request.company_name)
+    locations = gmapv2(request.company_name, request.location)
     stock = extract_stock_data(t_object)    
     news = extract_news(request.company_name)
-
     return {
         "ticker": ticker,
         "about": about,
-        "salary": salary,
+        "offices": locations,
+        "salary": 'Currently Unavailable',
         "stock_summary": stock.tail(5).to_dict(),
-        "news": news
+        "news": news,
     }
