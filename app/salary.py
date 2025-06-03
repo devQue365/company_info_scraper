@@ -1,7 +1,7 @@
 import http.client
 import requests
 import urllib.parse
-from pprint import pprint
+from app.Parser import customizedParser
 import json
 ''' 
 Display real-time job listings 
@@ -62,8 +62,8 @@ def glassDoor__v1(company, job_title, location):
                     # salary summary
                     container.append({
                         # basic information
-                        'company_name': company_name,
                         'job_title': job_title,
+                        'company_name': company_name,
                         'location': location,
                         # base salary ranges
                         'min_base_salary': round(base_mean * 0.81, 2),  # estimated ~19% below mean
@@ -79,6 +79,7 @@ def glassDoor__v1(company, job_title, location):
                         'salary_currency': currency,
                         'salary_period': 'YEAR',
                         'provider': 'glassdoor__v1',
+                        'type': 'postings',
                     })
             return container
         return extract_salary(res)
@@ -138,8 +139,8 @@ def glassDoor__v2(company, job_title, location):
 
             format = {
                 # basic information
-                'company_name': data.get('company_name', None),
                 'job_title': parameters.get('job_title', None),
+                'company_name': data.get('company_name', None),
                 'location': parameters.get('location', None),
                 # base-salary range
                 'min_base_salary': data.get('min_base_salary', 0.0),
@@ -159,7 +160,8 @@ def glassDoor__v2(company, job_title, location):
                 'salary_count': data.get('salary_count', None),
                 'salary_currency': currency,
                 'salary_period': data.get('salary_period', None),
-                'provider': 'glassDoor__v2'
+                'provider': 'glassDoor__v2',
+                'type': 'estimate',
             }
             return format
         return getStructuredFormat()
@@ -193,8 +195,8 @@ def jsearch(company, job_title, location):
         salary_data = res['data'][0]
         return {
             # basic information
-            'company_name': salary_data.get("company", None),
             'job_title': salary_data.get("job_title", None),
+            'company_name': salary_data.get("company", None),
             'location': salary_data.get("location", None),
             # base salary range
             'min_base_salary': salary_data.get('min_base_salary', 0.0),
@@ -212,7 +214,8 @@ def jsearch(company, job_title, location):
             'salary_count': salary_data.get('salary_count', None),
             'salary_currency': salary_data["salary_currency"],
             'salary_period': salary_data['salary_period'],
-            'provider': 'jsearch'
+            'provider': 'jsearch',
+            'type': 'estimate',
         }
     except Exception as e:
         return {"error": "Job data not available ..."}
@@ -240,8 +243,8 @@ def job_salary_data_api(company, job_title, location, API_KEY=None):
         item = res['data'][0]
         return {
             # basic information
-            'company_name': item['company'],
             'job_title': item['job_title'],
+            'company_name': item['company'],
             'location': item['location'],
             # base-salary range
             'min_base_salary': item['min_base_salary'],
@@ -261,15 +264,15 @@ def job_salary_data_api(company, job_title, location, API_KEY=None):
             'salary_currency': item['salary_currency'],
             'salary_period': item['salary_period'],
             'provider': 'job_salary_data',
+            'type': 'estimate',
     }
     except Exception as e:
         return {"error": "Job data not available ..."}
 
-# CareerJet API - 1000 requests / hour
-def carrer_jet_api(company, job_title, location):
+# CareerJet API - 1000 requests / hour -> type : postings
+def career_jet_api(company, job_title, location):
     try:
         url = "http://public.api.careerjet.net/search"
-
         params = {
             "locale_code": "en_US",
             "keywords": f"{company} {job_title}",
@@ -289,12 +292,12 @@ def carrer_jet_api(company, job_title, location):
         filtered_jobs = [job for job in data.get("jobs", [])if job.get("company", "").lower() == company.lower()]
         # if no filtered jobs exist
         if not filtered_jobs:
-            return {"error": "No job data found"}
+            return {"error": "Job data not available ..."}
         # else replace with the filtered jobs
         data['jobs'] = filtered_jobs
+
         def extract_job_summary(output_dict):
-            salaries = []
-            job_list = []
+            container = []
             salary_period = {
                 'Y': 'YEAR',
                 'A': 'ANNUM',
@@ -303,62 +306,57 @@ def carrer_jet_api(company, job_title, location):
                 'D': 'DAY',
                 'H': 'HOUR'
             }
-            
+            # traverse each job posting
             for job in output_dict.get("jobs", []):
-                title = job.get("title", "")
-                job_list.append(title)
-                try:
-                    min_salary = float(job.get("salary_min", 0))
-                    max_salary = float(job.get("salary_max", 0))
+                # filter based on availablility of salary
+                if job.get('salary'):
+                    # get the job title
+                    job_title = job.get('title', '')
+                    try:
+                        min_salary = float(job.get("salary_min", 0.0))
+                        max_salary = float(job.get("salary_max", 0.0))
+                    except (ValueError, TypeError):
+                        continue
+                    currency = job.get("salary_currency_code")
+                    if not (min_salary == max_salary):
+                        salary_range = f'{currency} {min_salary} - {currency} {max_salary}'
+                    else: 
+                        salary_range = ''
+                        min_salary = ''
+                        max_salary = ''
+                    # for parsing description
+                    parser = customizedParser()
+                    description = job.get('description', '')
+                    parser.feed(description)
+                    description = ''.join(parser.result)
+                    job_info = {
+                        # basic information
+                        'job_title': job_title,
+                        'company_name': job.get('company', ''),
+                        'location': job.get('locations', ''),
+                        
+                        # [No base-salary information !!] ---- Note
+                        # [No additional-pay information !!] ---- Note
 
-                    if min_salary:
-                        salaries.append(min_salary)
-                    if max_salary and max_salary != min_salary:
-                        salaries.append(max_salary)
-                except (ValueError, TypeError):
-                    continue
-            # if not salaries:
-            #     return {
-            #         'salary_range': 'N/A',
-            #         'base_salary': 'N/A',
-            #         'median_salary': 'N/A',
-            #         'mean_salary': 'N/A',
-            #     }
-            if(salaries):
-                salaries.sort()
-                currency = output_dict.get("salary_currency_code")
-                salary_range = f'{currency} {min(salaries):.2f} - {currency} {max(salaries):.2f}'
-                base_salary = f'{currency} {min(salaries):.2f}'
-                mean_salary = sum(salaries) / len(salaries)
-                median_salary = (
-                    salaries[len(salaries) // 2]
-                    if len(salaries) % 2 == 1
-                    else (salaries[len(salaries) // 2 - 1] + salaries[len(salaries) // 2]) / 2
-                )
-            else:
-                salary_range = None
-                base_salary = None
-                median_salary = None
-                mean_salary = None
+                        # General-salary information
+                        'salary': job.get('salary'),
+                        'salary_min': min_salary,
+                        'salary_max': max_salary,
+                        'salary_range': salary_range,
+                        'description': description,
+                        'date_posted': job.get('date', ''),
+                        'url': job.get('url', ''),
+                        'salary_currency': currency,
+                        'salary_period': salary_period.get(job.get('salary_type','A'), ''),
+                        'type': 'postings',
+                    }
 
-            job_info = {
-                # basic information
-                "company_name": next((p['company'] for p in output_dict.get('jobs', [])), None),
-                # "job_title": job.get("title", "").split(",")[0],  # I removed extra qualifiers like amazon-ADS
-                "job_title": job_list,
-                "location": next((p['locations'] for p in output_dict.get("jobs", [])), None),
-                "salary_currency": next((p['salary_currency_code'] for p in output_dict.get("jobs", []) if p.get('salary_currency_code')), None),
-                # base-salary range
-
-                "salary_period": salary_period.get(next((p.get("salary_type") for p in output_dict.get("jobs", [])), None),None),
-                "salary_range": salary_range,
-                "base_salary": base_salary,
-                "median_salary": f'{currency} {median_salary:.2f}' if median_salary is not None else None,
-                "mean_salary": f'{currency} {mean_salary:.2f}' if mean_salary is not None else None,
-                "company_rating": None
-            }
-            return job_info
+                    container.append(job_info)
+            return container
         job_summary = extract_job_summary(data)
-        return job_summary
+        if(job_summary):
+            return job_summary
+        else:
+            raise Exception
     except Exception as e:
         return {"error": "Job data not available ..."}
