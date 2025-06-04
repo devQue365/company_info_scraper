@@ -61,6 +61,53 @@ def gm__1(company, location):
     except Exception as e:
         return {'error': str(e)}
 
+# Threshold - 1000 requests / MO 
+def gm__2(company, location):
+    conn = http.client.HTTPSConnection("google-map-scraper1.p.rapidapi.com")
+
+    headers = {
+        'x-rapidapi-key': "7ee1c65373msh181b4a01f21d239p1e5ff7jsnc2f07e071e6d",
+        'x-rapidapi-host': "google-map-scraper1.p.rapidapi.com"
+    }
+    query_params = {
+        'query': f'{company}, {location}'
+    }
+    # get url_safe_query
+    url_safe_query = urllib.parse.urlencode(query_params)
+    conn.request("GET", f"/api/autocomplete/search?{url_safe_query}", headers=headers)
+    res = conn.getresponse()
+    data = res.read()
+    output_dict = json.loads(data)
+    # go to the data section
+    data = output_dict.get('data', {})
+    # go to the results section
+    results = data.get('results', {}) # we get a list here
+    def summarize():
+        nonlocal results
+        # initialize a container to hold results
+        container = []
+        # traverse each result and extract the required fields
+        for r in results:
+            # get id
+            place_id = r.get('id', '')
+            address = r.get('title', '').lower()
+            if((company + ' ').lower() not in address):
+                continue
+            latitude = r.get('latitude', '')
+            longitude = r.get('longitude', '')
+            country_code = r.get('country_code')
+            is_place = r.get('is_place')
+            location_info = {
+                'place_id': place_id,
+                'address': address,
+                'latitude': latitude,
+                'longitude': longitude,
+                'country_code': country_code,
+                'is_place': is_place
+            }
+            container.append(location_info)
+        return container
+    return summarize()
 
 # Threshold - 1000 requests / MO -> may/may not give all results [uses autocomplete predictions but will give relevant ones only]
 def gm__backup(company, location):
