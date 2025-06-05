@@ -63,18 +63,18 @@ def gm__1(company, location):
 
 # Threshold - 1000 requests / MO 
 def gm__2(company, location):
-    conn = http.client.HTTPSConnection("google-map-scraper1.p.rapidapi.com")
 
+    conn = http.client.HTTPSConnection("google-map-scraper1.p.rapidapi.com")
     headers = {
         'x-rapidapi-key': "7ee1c65373msh181b4a01f21d239p1e5ff7jsnc2f07e071e6d",
         'x-rapidapi-host': "google-map-scraper1.p.rapidapi.com"
     }
     query_params = {
-        'query': f'{company}, {location}'
+        'query': f'{company.lower()} main office, {location.lower()}'
     }
     # get url_safe_query
     url_safe_query = urllib.parse.urlencode(query_params)
-    conn.request("GET", f"/api/autocomplete/search?{url_safe_query}", headers=headers)
+    conn.request("GET", f"/api/places/search?{url_safe_query}", headers=headers)
     res = conn.getresponse()
     data = res.read()
     output_dict = json.loads(data)
@@ -86,29 +86,50 @@ def gm__2(company, location):
         nonlocal results
         # initialize a container to hold results
         container = []
-        # traverse each result and extract the required fields
-        for r in results:
-            # get id
-            place_id = r.get('id', '')
-            address = r.get('title', '').lower()
-            if((company + ' ').lower() not in address):
+        for result in results:
+            place_id = result.get("id", '')
+            name = result.get("name", '')
+            address = result.get("address", '')
+            rating = result.get("rating", 0)
+            tag = result.get("tag", '')
+            # filter out the results
+            allowed_tags = ["head_office", "corporate_office", "pvt_ltd", "private_limited", "development_center", "main_office", "software_company", "electronics_manufacturer"]
+            # pass through 3-step check :-
+            if company.lower() not in name.lower():
                 continue
-            latitude = r.get('latitude', '')
-            longitude = r.get('longitude', '')
-            country_code = r.get('country_code')
-            is_place = r.get('is_place')
+            if tag not in allowed_tags:
+                continue
+            # backup filter: reject low-rated "corporate_office"
+            if "corporate_office" in tag and rating and float(rating) < 3.0:
+                continue
             location_info = {
-                'place_id': place_id,
-                'address': address,
-                'latitude': latitude,
-                'longitude': longitude,
-                'country_code': country_code,
-                'is_place': is_place
+                "place_id": place_id,
+                "plus_code": result.get("plus_code", ''),
+                "name": name,
+                "about": result.get("about", ''),
+                "phone_number": result.get("phone_number", ''),
+                "address": address,
+                "zone": result.get("zone", ''),
+                "country_code": result.get("country_code", ''),
+                "url": result.get("url", ''),
+                # "reviews": result.get("reviews", ''),
+                "rating": rating,
+                "tag": tag,
+                # "cover_photo": result.get("cover_photo", ''),
+                # "photo_count": result.get("photo_count", ''),
+                "status": result.get("status", ''),
+                "opening_status": result.get("opening_status", ''),
+                "website": result.get("website", ''),
+                "latitude": result.get("latitude", 0),
+                "longitude": result.get("longitude", 0),
             }
             container.append(location_info)
-        return container
+        return container[:3]
     return summarize()
 
+# To be included soon
+def gm__3(company, location):
+    pass
 # Threshold - 1000 requests / MO -> may/may not give all results [uses autocomplete predictions but will give relevant ones only]
 def gm__backup(company, location):
     conn = http.client.HTTPSConnection("google-place-autocomplete-and-place-info.p.rapidapi.com")
@@ -154,6 +175,7 @@ def gm__backup(company, location):
 
         return container
     return summarize()
+
 
 
 
