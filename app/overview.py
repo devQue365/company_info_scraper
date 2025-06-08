@@ -1,7 +1,6 @@
 import http.client
 import urllib.parse
 import requests
-
 # Threshold : 300 Requests / MO
 def ov__1(company_name : str):
     query_params = {
@@ -88,3 +87,4 @@ def ov__1(company_name : str):
 
 def ov__2(company_name : str):
     pass
+
