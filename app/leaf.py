@@ -9,6 +9,7 @@ init_db()
 # create a database session
 db : Session = sessionLocal()
 
+
 # created the instances / records of external APIs which we are using in our app (providers -> alias -> p)
 
 def tweet_init_leaf(db: Session):
