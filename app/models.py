@@ -15,7 +15,7 @@ class TWT(Base):
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
     last_reset = Column(DateTime, nullable = False)
-
+    token_id = Column(String, default = 'twt', nullable = False)
 # Maps API usage table
 class MAP(Base):
     __tablename__ = "MAP__USAGE"
@@ -27,6 +27,7 @@ class MAP(Base):
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
     last_reset = Column(DateTime, nullable = False)
+    token_id = Column(String, default = 'map', nullable = False)
 
 # Salary API usage table
 class SAL(Base):
@@ -41,6 +42,7 @@ class SAL(Base):
     last_reset = Column(DateTime, nullable = False)
     type = Column(String, default= 'E', nullable = False)  # type of salary data (e.g., hourly, annual)
     confidence = Column(Integer, default = 0)  # confidence score for salary data
+    token_id = Column(String, default = 'sal', nullable = False)
 
 # Overview API usage table
 class OVR(Base):
@@ -53,11 +55,18 @@ class OVR(Base):
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
     last_reset = Column(DateTime, nullable = False)
+    token_id = Column(String, default = 'ovr', nullable = False)
 
-# Table to hold glassdoor ids
-class GD_CRED(Base):
-    __tablename__ = "GD__CRED"
-    Id = Column(Integer, index = True)
-    company_name = Column(String, unique = True, nullable = False)
-    company_id = Column(String, unique = True, primary_key = True, nullable = False)
-    location_id = Column(String, unique = True, nullable = False)
+class GD_COMPANY(Base):
+    __tablename__ = "GD__CID"
+    Id = Column(Integer, index=True)
+    company_name = Column(String, unique=True, nullable=False)
+    company_id = Column(String, primary_key=True)
+class GD_LOCATION(Base):
+    __tablename__ = "GD__LOC"
+    Id = Column(Integer, index=True)
+    location = Column(String, unique=True, nullable=False)
+    location_id = Column(String, primary_key=True)
+
+# create them
+# Base.metadata.create_all(bind = None)
