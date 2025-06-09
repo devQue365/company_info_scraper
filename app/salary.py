@@ -10,7 +10,7 @@ start from best ones - glassdoor | indeed
 overview_list = []
 # GlassDoor API - 200 requests / MO 
 # [makes 2 X requests / API Call] -> 100 requests in total (practical threshold)
-def glassDoor__v1(company, job_title, location):
+def glassdoor__v1(company, job_title, location):
     try:
         conn = http.client.HTTPSConnection("glassdoor-real-time.p.rapidapi.com")
         headers = {
@@ -87,7 +87,7 @@ def glassDoor__v1(company, job_title, location):
     except Exception as e:
         return {"error": str(e)} #"Job data not available ..."}
 # [makes 2 X requests / API Call] -> 100 requests in total (practical threshold)
-def glassDoor__v2(company, job_title, location):
+def glassdoor__v2(company, job_title, location):
     global overview_list
     try:
         conn = http.client.HTTPSConnection("real-time-glassdoor-data.p.rapidapi.com")
@@ -223,7 +223,7 @@ def jsearch(company, job_title, location):
         return {"error": str(e)} # "Job data not available ..."}
 
 # Job_Salary_Data_API - 50 requests / MO
-def job_salary_data_api(company, job_title, location, API_KEY=None):
+def job_salary_data(company, job_title, location, API_KEY=None):
     try:
         conn = http.client.HTTPSConnection("job-salary-data.p.rapidapi.com")
         headers = {
@@ -272,7 +272,7 @@ def job_salary_data_api(company, job_title, location, API_KEY=None):
         return {"error": "Job data not available ..."}
 
 # CareerJet API - 1000 requests / hour -> type : postings
-def career_jet_api(company, job_title, location):
+def career_jet(company, job_title, location):
     try:
         url = "http://public.api.careerjet.net/search"
         params = {
