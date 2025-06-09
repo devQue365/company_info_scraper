@@ -3,6 +3,8 @@ import requests
 import urllib.parse
 from app.Parser import customizedParser
 import json
+from sqlalchemy.orm import Session
+from app.models import *
 ''' 
 Display real-time job listings 
 start from best ones - glassdoor | indeed
@@ -10,7 +12,7 @@ start from best ones - glassdoor | indeed
 overview_list = []
 # GlassDoor API - 200 requests / MO 
 # [makes 2 X requests / API Call] -> 100 requests in total (practical threshold)
-def glassdoor__v1(company, job_title, location):
+def glassdoor__v1(company, job_title, location, db: Session):
     try:
         conn = http.client.HTTPSConnection("glassdoor-real-time.p.rapidapi.com")
         headers = {
@@ -18,15 +20,33 @@ def glassdoor__v1(company, job_title, location):
             'x-rapidapi-host': "glassdoor-real-time.p.rapidapi.com"
         }
         # first extract locationId
-        params = {
-            'query' : location
-        }
-        url_safe_query = urllib.parse.urlencode(params)
-        conn.request("GET", f"/jobs/location?{url_safe_query}", headers=headers)
-        res = conn.getresponse()
-        data = res.read()
-        res = json.loads(data)
-        locationId = res['data'][0]['locationId'] # we got the location ID
+        # check if the location credentials are present in the database
+        try:
+            locationId = db.query(GD_LOCATION).filter(GD_LOCATION.location == location).first().location_id
+        except Exception as e:
+            locationId = None
+        # if locationId is not present in the database then we will be making a request to get the locationId
+        if not locationId:
+            params = {
+                'query' : location
+            }
+            url_safe_query = urllib.parse.urlencode(params)
+            conn.request("GET", f"/jobs/location?{url_safe_query}", headers=headers)
+            res = conn.getresponse()
+            data = res.read()
+            res = json.loads(data)
+            locationId = res['data'][0]['locationId'] # we got the location ID
+            # Store the locationId in the database
+            if locationId:
+                # Add the locationId to the database
+                new_entry = GD_LOCATION(
+                    # sanitize the location string
+                    location = location.lower().strip().replace(' ', '_'),
+                    location_id = locationId
+                )
+                db.add(new_entry)
+                db.commit()
+
         # Now extract salary data
         params = {
             'query' : f'{company} {job_title}',
