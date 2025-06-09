@@ -28,5 +28,3 @@ def start_db_session():
         yield db_session
     finally:
         db_session.close()
-
-    
