@@ -34,6 +34,7 @@ async def app_lifespan(app: FastAPI):
         overview_init_leaf(db) # To initialize the overview leaf
     yield
     print('\033[31m\033[1mSession ended ...\033[0m')
+# Create the FastAPI app instance
 app = FastAPI(lifespan = app_lifespan)
 # dependency injection to get database session everytime for every request
 
@@ -47,7 +48,7 @@ def welcome_msg():
             'endpoint_1': './get-active-providers',
             'endpoint_2': './docs'
         }
-        }
+    }
 # Endpoint to get active api providers
 @app.get('/get-active-providers')
 def get_active_api(db : Session = Depends(start_db_session)):
@@ -64,68 +65,77 @@ def get_active_api(db : Session = Depends(start_db_session)):
 @app.post('/company-info')
 def company_info(request : InfoRequest, db : Session = Depends(start_db_session)):
     # get the active provider
-    # active_provider = select_provider(db) # get active provider
-    # if not active_provider: # All exhausted
-        
-        # salary = extract_salary(request.company_name,request.job_title)
-    
-    # now check for each level of API provider
-    # def getSalaryData():
-    #     nonlocal db
-    #     nonlocal request
-    #     # get list of providers
-    #     active_providers = active_provider_list(db)
-    #     # if no active provider
-    #     if not active_providers:
-    #         raise HTTPException(status_code=429, detail='All the APIs have reached their maximum limit.')
-        # for provider in active_providers:
-        #     if(provider.provider == 'jsearch'):
-        #         salary = jsearch(request.company_name, request.job_title,request.location)
-        #     elif(provider.provider == 'glassdoor'):
-        #         salary = glassDoor(request.company_name, request.job_title,request.location)
-        #     elif(provider.provider == 'jobsalarydata'):
-        #         salary = job_salary_data_api(request.company_name, request.job_title, request.location)
-        #     elif(provider.provider == 'careerjet'):
-        #         salary = carrer_jet_api(request.company_name, request.job_title, request.location)
-
-            # Analyze API response
-            # if 'error' not in salary:
-            #     provider.used_calls+=1
-            #     db.commit()
-            #     return salary
-        # return salary
-    # provider = active_provider_list(db)[2]
-    # salary = glassDoor__v2(request.company_name, request.job_title, request.location)
-    # if 'error' not in salary:
-    #     provider.used_calls+=1
-    #     db.commit()
-    # Going for each section's relational schema
-
+    active_providers = get_providers(db) # get active providers
+    # ------- Ticker and About section -------
     ticker = extract_ticker(request.company_name)
     if(not ticker):
         return {"error" : "unidentified company"}
     t_object = Ticker(ticker)
-    ''' For company overview, we will use the overview module.
-    It will first check if the overview_list is not empty, then it will use the overview_list.
-    If it is empty, then it will use the ov__1 function to get the overview of the company.
-    '''
-    # if(overview_list):
-    #     company_overview = overview_list
-    # else:
-    #     company_overview = ov__1(request.company_name)
     about = extract_about(request.company_name)
-    # locations = gm__2(request.company_name, request.location)
-    # stock = extract_stock_data(t_object)    
-    # tweets = twt__4(request.company_name)
-    ''' For news, we will use the extract_news function.'''
+    
+    # ------- Stocks section -------
+    stock = extract_stock_data(t_object)    
+   
+    # ------- News section -------
     news = extract_news(request.company_name)
+   
+    # ------- overview section -------
+    if(overview_list):
+        company_overview = overview_list
+    else:
+        provider = next((p for p in active_providers if p.token_id == 'ovr'), None)
+        if provider:
+            # company_overview = ov__1(request.company_name)
+            company_overview = "fetching overview ..." # dummy statement
+            # check for errors
+            if('error' not in company_overview):
+                provider.used_calls += 1
+        else:
+            raise HTTPException(status_code=429, detail='Too many requests ...')
+
+    # ------- Tweets section -------
+    provider = next((p for p in active_providers if p.token_id == 'twt'), None)
+    if provider:
+        fmap_ref = globals()[provider.name]
+        # tweets = fmap_ref(request.company_name)
+        tweets = "fetchimg tweets ..." # dummy statement
+        if 'error' not in tweets:
+            provider.used_calls+=1
+    else:
+        raise HTTPException(status_code=429, detail='Too many requests ...')
+    
+    # ------- Location section -------
+    provider = next((p for p in active_providers if p.token_id == 'map'), None)
+    if provider:
+        fmap_ref = globals()[provider.name]
+        # locations = fmap_ref(request.company_name, request.location)
+        locations = "fetching locations ..." # dummy statement
+        # look for errors
+        if 'error' not in locations:
+            provider.used_calls+=1
+    else:
+        raise HTTPException(status_code=429, detail='Too many requests ...')    
+
+    # ------- Salary section -------
+    provider = next((p for p in active_providers if p.token_id == 'sal'), None)
+    if provider:
+        # fmap_ref = globals()[provider.provider]
+        salary = glassdoor__v1(request.company_name, request.job_title, request.location, db) 
+        # look for errors
+        # if 'error' not in salary:
+            # provider.used_calls+=1
+    else:
+        raise HTTPException(status_code=429, detail='Too many requests ...')
+    
+    # ------ Update the database -------
+    db.commit()
     return {
         "ticker": ticker,
         "about": about,
-        # 'company_overview': company_overview, # (costly)
-        # "locations": locations,
-        # "salary": salary,
-        # "stock_summary": stock.tail(5).to_dict(),
-        # 'latest_handles': tweets,
+        'company_overview': company_overview, # (costly)
+        "locations": locations,
+        "salary": salary,
+        "stock_summary": stock.tail(5).to_dict(),
+        'latest_ceo_handles': tweets,
         "news": news,
     }
