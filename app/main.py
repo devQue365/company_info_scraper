@@ -62,7 +62,7 @@ def get_active_api(db : Session = Depends(start_db_session)):
     }
 
 # endpoint to get company information
-@app.post('/company-info')
+@app.get('/company-info')
 def company_info(request : InfoRequest, db : Session = Depends(start_db_session)):
     # get the active provider
     active_providers = get_providers(db) # get active providers
