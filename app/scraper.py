@@ -142,14 +142,18 @@ def extract_ticker(company_name):
 
 
 
-def extract_stock_data(t_object, period = '1d'): 
+def extract_stock_data(t_object, period = '1d', interval='1d'): 
     # fetch data accoding to your need
-    data = t_object.history(period = period)
+    data = t_object.history(period = period, interval=interval)
     return data
 
-def extract_news(company_name):
+def extract_news(company_name, job_title):
     # Pass RSS url
-    url = f"https://news.google.com/rss/search?q={company_name}+company+latest+insights"
+    query_params = {
+        'q': f"\"{company_name}\" (\"{job_title}\" OR developer OR tech OR engineer OR hiring OR layoff OR controversy OR criticism OR lawsuit OR protest OR strike)"
+    }
+    url_safe_query = urllib.parse.urlencode(query_params)
+    url = f"https://news.google.com/rss/search?{url_safe_query}"
     # Get the feed
     feed = feedparser.parse(url)
     if feed.bozo == True:
@@ -158,7 +162,7 @@ def extract_news(company_name):
     # print(f'\033[1m\033[33m{len(feed.entries)} entries found !\033[0m')
     container = []
     # Examine each entry
-    for entry in feed.entries[:5]:
+    for entry in feed.entries[:10]:
         data = []
         # Get the title
         data.append(entry.title)
