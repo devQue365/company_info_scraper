@@ -6,6 +6,7 @@ import csv
 import feedparser
 from newspaper import Article
 import time
+from difflib import SequenceMatcher
 # main scraping libraries / modules
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -14,7 +15,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc
-from app.Parser import customizedParser
+from fake_useragent import UserAgent
+# from app.Parser import customizedParser
+import urllib.parse
 mock_header = {
         "User-Agent": "Mozilla/5.0"
     }
@@ -136,10 +139,12 @@ def extract_ticker(company_name):
     return None
 
 
+
+
+
 def extract_stock_data(t_object, period = '1d'): 
     # fetch data accoding to your need
     data = t_object.history(period = period)
-    # return the data
     return data
 
 def extract_news(company_name):
@@ -171,3 +176,132 @@ def extract_news(company_name):
         # Add to the main container
         container.append(data)
     return container
+
+def extract_reviews(company_name, job_title):
+    try:
+        ua = UserAgent()
+        user_agent = ua.random
+        options = uc.ChromeOptions()
+        # options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        # if(headless):
+        # options.add_argument("--headless=new")
+        options.add_argument(f'--user-agent={user_agent}')
+        options.add_argument("--disable-gpu")
+        options.add_argument("--log-level=3") 
+        # options.add_argument("--window-size=1920,1080")
+        options.add_argument("start-maximized")
+        options.add_argument("disable-infobars")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage") 
+        options.add_argument("--disable-blink-features=AutomationControlled") 
+        options.add_argument("--disable-background-timer-throttling")
+        # options.add_argument("--disable-backgrounding-occluded-windows") 
+        # options.add_argument("--disable-renderer-backgrounding")  
+        # options.add_argument("--blink-settings=imagesEnabled=false")
+        options.add_experimental_option("excludeSwitches", ["disable-popup-blocking"])
+        driver = webdriver.Chrome(options = options)
+        # Get the query params
+        query_params = {
+            "q": f"site:glassdoor.com \"reviews\" {company_name} {job_title}"
+        }
+        # keywords
+        keywords = f"{company_name} {job_title}".split()
+        url_safe_query = urllib.parse.urlencode(query_params)
+        url = f"https://www.google.com/search?{url_safe_query}"
+        driver.get(url)
+        def not_a_bot(driver):
+            wait = WebDriverWait(driver, 15)
+            wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[starts-with(@name,'a-') and starts-with (@src, 'https://www.google.com/recaptcha')]")))
+            wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@class='recaptcha-checkbox-border']"))).click()
+            driver.switch_to.default_content()
+        not_a_bot(driver)
+        # get the main links container
+        link_container = driver.find_element(By.CLASS_NAME, "dURPMd")
+        # explore all the link cards
+        link_cards = link_container.find_elements(By.CLASS_NAME, "MjjYud")
+        # now explore each of the link cards
+        for card in link_cards:
+            # get the span section
+            try:
+                # check whether we are making correct choice 
+                h3_title = card.find_element(By.CLASS_NAME, "LC20lb MBeuO DKV0Md").text
+                provider = card.find_element(By.CLASS_NAME, "VuuXrf").text
+                ## check for provider (security)
+                if(provider.lower() == 'glassdoor'):
+                    ## check availability of keywords (security)
+                    # for k in keywords:
+                    #     if k not in h3_title:
+                    #         continue
+                    span_section = card.find_element(By.TAG_NAME, "span")
+                    if span_section:
+                        anchor = card.find_element(By.CLASS_NAME, "zReHs")
+                        anchor.click()
+                        # wait for some time to mimic real browser
+                        time.sleep(3)
+                        # get the page source
+                        page_source = driver.page_source
+                        break
+            except:
+                continue
+            # Now, we are working on glassdoor site
+            ## from here we will be using beautiful soup
+            soup = BeautifulSoup(page_source, 'html.parser')
+            feed = soup.find("div", id="ReviewsFeed")
+            ## get the ordered list
+            ol = feed.find("ol", class_ = "ReviewsList_reviewsList__Qfw6M")
+            ## extract upper section credentials - ceo, ceo_approval, recommend_line
+            u_section = soup.find("div", class_ = "module-container_moduleContainer__tpBfv module-container_redesignContainer__rLCJ4")
+            # get recommend_line
+            recommend_line = u_section.find("p", class_ = "review-overview_recommendLine__ecVgo").text
+            # get ceo name
+            ceo_name = u_section.find("p", class_ = "review-overview_ceoName__8AcsH").text
+            # get ceo approval
+            ceo_approval = u_section.find("p", class_ = "review-overview_ceoApproval__oy27U").text
+            ## explore individual review cards
+            review_container = []
+            _ctr = 0
+            for li in ol:
+                try:
+                    # get the top container - date, review rating
+                    rating = li.find("span", class_ = "review-rating_ratingLabel__0_Hk9").text
+                    date_posted = li.find("span", class_ = "timestamp_reviewDate__dsF9n").text
+                    # go to the header container of the li card
+                    header = li.find("div", class_ = "review-details_headerContainer__ctBF6")
+                    ## extract individual elements - review_title, job_role, current_status
+                    r_title = header.find("h3",class_ = "heading_Heading__BqX5J heading_Level3__X81KK").text
+                    r_job_role = header.find("span", class_ = "review-avatar_avatarLabel__P15ey").text
+                    # for current status and location
+                    sub_header = header.find_all("div", class_ = "text-with-icon_LabelContainer__xbtB8 text-with-icon_disableTruncationMobile__o_kha")
+                    r_current_status = sub_header[0].text
+                    r_location = sub_header[1].text
+                    # get pros
+                    r_pros = li.find("span", {"data-test": "review-text-PROS"}).text
+                    r_cons = li.find("span", {"data-test": "review-text-CONS"}).text
+                    record = {
+                        'rating': rating,
+                        'date_posted': date_posted,
+                        'review_title': r_title,
+                        'reviewer_job_role': r_job_role,
+                        'reviewer_current_status': r_current_status,
+                        'location': r_location,
+                        'reviews': {
+                            'pros': r_pros,
+                            'cons': r_cons
+                        }
+                    }
+                    _ctr+=1
+                    review_container.append(record)
+                except Exception as e:
+                    continue
+        return {
+            'ceo_name': ceo_name,
+            'ceo_approval': ceo_approval,
+            'recommend_line': recommend_line,
+            'reviews': review_container
+        }
+    except Exception as e:
+        return {"error": "No review information available ..."}
+    
+
+# print(extract_reviews('apple', 'software engineer')) 
