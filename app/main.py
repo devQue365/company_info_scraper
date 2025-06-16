@@ -2,10 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from contextlib import asynccontextmanager
 # For plots
+import matplotlib.pyplot as plt
+from matplotlib_inline.backend_inline import set_matplotlib_formats
 import io # for saving the plot to Bytes IO stream
 import base64 # for encoding to base64
-# for plot
-import matplotlib.pyplot as plt
+from dateutil.relativedelta import relativedelta # (it can also take leap-years into consideration)
 # from app.schemas import InfoRequest
 from app.scraper import *
 from app.utils import clean_text
@@ -55,7 +56,10 @@ def welcome_msg():
         'explore': {
             'endpoint_1': '{{base}}/status',
             'endpoint_2': '{{base}}/get-active-providers',
-            'endpoint_3': '{{base}}/docs'
+            'endpoint_3': '{{base}}/reviews',
+            'endpoint_4': '{{base}}/stocks',
+            'endpoint_5': '{{base}}/news',
+            'testing_url': '{{base}}/docs'
         }
     }
 
@@ -96,15 +100,16 @@ def get_reviews(company_name: str, job_title: str):
     reviews = extract_reviews(company_name, job_title)
     return {
         'status': status,
-        'company_name': company_name,
-        'job_title': job_title,
+        'company_name': company_name.capitalize(),
+        'job_title': job_title.capitalize(),
         'reviews': reviews
     }
 
 
 # endpoint to get company stock information
 @app.get('/stocks')
-def get_stocks(company_name: str, historical_insights = False, _plot = False):
+def get_stocks(company_name: str, historical_insights = False, _plot: str = 'N', _download = False):
+    ''' Get the company's stock information '''
     # helper function to convert the received data to json serializable form (pd data-frame -> json serializable list of dicts)
     def json_serailizable_list_of_dicts(df: pd.DataFrame) -> list:
         ''' To convert the pandas dataframe to json serializable list of dicts '''
@@ -138,53 +143,90 @@ def get_stocks(company_name: str, historical_insights = False, _plot = False):
         latest_closing = None
 
     # get the weekly insights
-    weekly_insights = extract_stock_data(t_object, period='5d')
+    weekly_insights = extract_stock_data(t_object, period='1wk')
 
-    # get monthly stock insights
-    monthly_insights = json_serailizable_list_of_dicts(extract_stock_data(t_object, period = '1mo'))
+    # get monthly stock insights (interval : 5d)
+    monthly_insights = extract_stock_data(t_object, period = '1mo', interval = '7d')
 
-    # get annual stock insights
-    annual_inights = json_serailizable_list_of_dicts(extract_stock_data(t_object, period = '1y'))
+    # get annual stock insights (interval : 1mo)
+    annual_insights = extract_stock_data(t_object, period = '1y', interval = '1mo')
     
-    # get historical stock insights
-    historical_data = json_serailizable_list_of_dicts(extract_stock_data(t_object, period = 'max'))
+    # get historical stock insights (interval : 1y)
+    historical_data = extract_stock_data(t_object, period = 'max',interval = '1y')
 
-    # for plots
-    ## weekly plots
-    weekly_insights['Close'].plot(title = "Stock price variation (last year)")
-    plt.xlabel("Date")
-    plt.ylabel("Stock Price")
+    # construct plots
+    def constructPlot(period):
+        nonlocal ticker, weekly_insights, monthly_insights, annual_insights, historical_data
+        set_matplotlib_formats('svg') # highly scalable and optimized resolution
+        # get current day
+        current_day = datetime.today()
+        last_month_cred = format(current_day - relativedelta(months=1), "%B %Y")
+        last_year = format(current_day - relativedelta(years=1), "%Y")
+        mapped_titles = {
+            'W': f"Weekly Movement of {ticker} Stock",
+            'M': f"Monthly Momentum: How {ticker} performed in {last_month_cred} ?",
+            'Y': f"Year in Charts: {ticker} Stock Price Trends in {last_year}",
+            'H': f"{ticker} Through the Ages: Full Stock Price History Since IPO"
+        }
+        mapped_X_labels = {
+            'W': "Days",
+            'M': "Week",
+            'Y': "Months",
+            'H': "Years",
+        }
+        insight_to_be_used = weekly_insights if (period == 'W') else monthly_insights if (period == 'M') else annual_insights if (period == 'Y') else historical_data if (period == 'H') else None
+        # main plot logic
+        insight_to_be_used['Close'].plot(title = mapped_titles.get(period, f"{ticker} Stock Trends"))
+        plt.xlabel(mapped_X_labels.get(period, "Standard TimeFrame"))
+        plt.ylabel("Stock Price (USD)")
+        plt.xticks(rotation = 45)
+        plt.figure(figsize=(15,8))
+        plt.tight_layout()
+        plt.legend(loc = 'best')
+
     if(_plot):
         # convert plot to Base64-encoded image in JSON
+        constructPlot(_plot)
         buf = io.BytesIO()
         plt.savefig(buf, format="png")
         buf.seek(0)
         # converting the plot to Base64 encoded image
         plot_64 = base64.b64encode(buf.read()).decode('utf-8')
         plt.close()
+
     else: plot_64 = "(not specified by user)"
-    
+
+    if(_download):
+            constructPlot()
+            plt.savefig(f"{ticker}_stock_data.svg", bbox_inches = 'tight')
+
     return JSONResponse(content = {
-        'company': company_name,
+        'company': company_name.capitalize(),
         'ticker': ticker,
         'stocks': {
             'latest_close_price': latest_closing,
             'latest_insights': json_serailizable_list_of_dicts(latest_insights)[0],
             'weekly_insights': json_serailizable_list_of_dicts(weekly_insights),
-            'annual_insights': annual_inights,
-            'historical_insights': historical_data if historical_insights else "(not specified by user)",
+            'annual_insights': json_serailizable_list_of_dicts(annual_insights),
+            'historical_insights': json_serailizable_list_of_dicts(historical_data) if (historical_insights) else "(not specified by user)",
         },
         'plot': plot_64
     })
  
 
-
-
-
-
-
-
-
+# endpoint to get company's news
+@app.get('/news')
+def get_news(company_name: str, job_title: str):
+    # ------- News section -------
+    news = extract_news(company_name, job_title)
+    
+    return JSONResponse(
+        content = {
+            'company': company_name.capitalize(),
+            'job_title': job_title.capitalize(),
+            'news_feed': news
+        }
+    )
 
 # endpoint to get company information
 @app.get('/company-info')
