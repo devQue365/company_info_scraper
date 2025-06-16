@@ -1,0 +1,5 @@
+selenium-wire
+fake-useragent
+webdriver-manager
+aiohttp
+blinker==1.7.0
