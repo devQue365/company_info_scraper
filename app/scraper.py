@@ -147,37 +147,27 @@ def extract_stock_data(t_object, period = '1d', interval='1d'):
     data = t_object.history(period = period, interval=interval)
     return data
 
-def extract_news(company_name, job_title):
+def extract_news(company_name: str, field_of_interest: str):
     # Pass RSS url
     query_params = {
-        'q': f"\"{company_name}\" (\"{job_title}\" OR developer OR tech OR engineer OR hiring OR layoff OR controversy OR criticism OR lawsuit OR protest OR strike)"
+        'q': f"\"{company_name}\" (\"{field_of_interest}\" OR developer OR tech OR engineer OR hiring OR layoff OR controversy OR criticism OR lawsuit OR protest OR strike)"
     }
     url_safe_query = urllib.parse.urlencode(query_params)
     url = f"https://news.google.com/rss/search?{url_safe_query}"
     # Get the feed
     feed = feedparser.parse(url)
     if feed.bozo == True:
-        # print('Error extracting news')
         return None
-    # print(f'\033[1m\033[33m{len(feed.entries)} entries found !\033[0m')
     container = []
     # Examine each entry
     for entry in feed.entries[:10]:
-        data = []
+        data = dict()
         # Get the title
-        data.append(entry.title)
-        data.append(entry.published if 'published' in entry else 'Unknown')
-        data.append(entry.author if 'author' in entry else 'Unknown')
-        # data.append(entry.summary if 'summary' in entry else None)
-        data.append(entry.link)
-        # Create newspaper object
-        article = Article(entry.link)
-        # download the article
-        article.download()
-        article.parse()
-        # Get the text
-        data.append(article.text[:300])
-        # Add to the main container
+        data['title'] = entry.title
+        data['published_on'] = entry.published if 'published' in entry else 'Unknown'
+        data['author'] = entry.author if 'author' in entry else 'Unknown'
+        data['summary'] = entry.summary if 'summary' in entry else ''
+        data['follow_up_link'] = entry.link
         container.append(data)
     return container
 
