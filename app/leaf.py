@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from app.database import init_db, sessionLocal
-from app.models import *
+from app.database.database import init_db, sessionLocal
+from app.database.models import *
 from datetime import datetime
 
 # Initialize the database
@@ -20,7 +20,7 @@ def tweet_init_leaf(db: Session):
     if db.query(TWT).count() == 0:
         p1 = TWT(
             name =  'twt__1',
-            provider = 'twttr_API',
+            provider = 'twttr_api',
             used_calls = 0,
             total_calls = 500,
             reset_type = 'M', # monthly
@@ -28,7 +28,7 @@ def tweet_init_leaf(db: Session):
             )
         p2 = TWT(
             name =  'twt__2',
-            provider = 'Twitter_API_unofficial',
+            provider = 'twitter_api_unofficial',
             used_calls = 0,
             total_calls = 1000,
             reset_type = 'M', # monthly
@@ -36,7 +36,7 @@ def tweet_init_leaf(db: Session):
             )
         p3 = TWT(
             name =  'twt__3',
-            provider = 'Twitter_AIO',
+            provider = 'twitter_aio',
             used_calls = 0,
             total_calls = 300,
             reset_type = 'M', # monthly
@@ -44,7 +44,7 @@ def tweet_init_leaf(db: Session):
             )
         p4 = TWT(
             name =  'twt__4',
-            provider = 'Old_Bird_V1',
+            provider = 'old_bird_v1',
             used_calls = 0,
             total_calls = 500,
             reset_type = 'M', # monthly
@@ -68,7 +68,7 @@ def map_init_leaf(db: Session):
     if db.query(MAP).count() == 0:
         p1 = MAP(
             name =  'gm__1',
-            provider = 'Google_Map_Places',
+            provider = 'google_map_places',
             used_calls = 0,
             total_calls = 100,
             reset_type = 'D', # monthly
@@ -76,7 +76,7 @@ def map_init_leaf(db: Session):
             )
         p2 = MAP(
             name =  'gm__2',
-            provider = 'Google_Map_Scraper',
+            provider = 'google_map_scraper',
             used_calls = 0,
             total_calls = 1000,
             reset_type = 'M', # monthly
@@ -84,7 +84,7 @@ def map_init_leaf(db: Session):
             )
         p3 = MAP(
             name =  'gm__backup',
-            provider = 'Google_Place_Autocomplete_and_Place_Info_API',
+            provider = 'google_place_autocomplete_and_place_info_api',
             used_calls = 0,
             total_calls = 1000,
             reset_type = 'M', # monthly
@@ -107,7 +107,7 @@ def salary_init_leaf(db: Session):
     if db.query(SAL).count() == 0:
         p1 = SAL(
             name =  'gd__1',
-            provider = 'glassdoor_V1',
+            provider = 'glassdoor__v1',
             used_calls = 0,
             total_calls = 100,
             reset_type = 'M', # monthly
@@ -117,7 +117,7 @@ def salary_init_leaf(db: Session):
             )
         p2 = SAL(
             name =  'gd__2',
-            provider = 'glassdoor_V2',
+            provider = 'glassdoor__v2',
             used_calls = 0,
             total_calls = 100,
             reset_type = 'M', # monthly
@@ -127,7 +127,7 @@ def salary_init_leaf(db: Session):
             )
         p3 = SAL(
             name =  'js',
-            provider = 'jsearch_API',
+            provider = 'jsearch',
             used_calls = 0,
             total_calls = 200,
             reset_type = 'M', # monthly
@@ -137,7 +137,7 @@ def salary_init_leaf(db: Session):
             )
         p4 = SAL(
             name =  'jsd',
-            provider = 'jobsalarydata',
+            provider = 'job_salary_data',
             used_calls = 0,
             total_calls = 50,
             reset_type = 'M', # monthly
@@ -147,7 +147,7 @@ def salary_init_leaf(db: Session):
             )
         p5 = SAL(
             name =  'cj',
-            provider = 'careerjet',
+            provider = 'career_jet',
             used_calls = 0,
             total_calls = 1000,
             reset_type = 'H', # hourly
@@ -174,7 +174,7 @@ def overview_init_leaf(db: Session):
     if db.query(OVR).count() == 0:
         p1 = OVR(
             name =  'ov__1',
-            provider = 'Real_time_GD_Apyflux',
+            provider = 'real_time_gd_apyflux',
             used_calls = 0,
             total_calls = 300,
             reset_type = 'M', # monthly
