@@ -13,7 +13,7 @@ from app.utils import clean_text
 from yfinance import Ticker
 import matplotlib.pyplot as plt
 # salary module
-from app.salary.salary_estimates import *
+from app.Salary.salary_estimates import *
 # location module
 from app.location import *
 # tweets module
@@ -30,7 +30,7 @@ from app.leaf import tweet_init_leaf, map_init_leaf, salary_init_leaf, overview_
 from app.database.api_usage_scheme import get_providers
 # NLP processing
 from app.database.insert import generic_cache_insert
-from app.salary.insert import salary_cache_insert
+from app.Salary.insert import salary_cache_insert
 from app.Essentials.semantic_similarity import semantic_match
 from app.Essentials.features import assistant_call
 
