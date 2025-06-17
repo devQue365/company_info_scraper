@@ -13,7 +13,7 @@ from app.utils import clean_text
 from yfinance import Ticker
 import matplotlib.pyplot as plt
 # salary module
-from app.salary import *
+from app.salary.salary_estimates import *
 # location module
 from app.location import *
 # tweets module
@@ -21,11 +21,19 @@ from app.tweets import *
 # overview module
 from app.overview import *
 # database module
-from app.database import init_db, sessionLocal, start_db_session
+from app.database.database import init_db, sessionLocal, start_db_session
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
+from app.database.models import CACHE_SAL, CACHE_OVR, CACHE_MAP
 from app.leaf import tweet_init_leaf, map_init_leaf, salary_init_leaf, overview_init_leaf
 # API usage scheme
-from app.api_usage_scheme import get_providers
+from app.database.api_usage_scheme import get_providers
+# NLP processing
+from app.database.insert import generic_cache_insert
+from app.salary.insert import salary_cache_insert
+from app.Essentials.semantic_similarity import semantic_match
+from app.Essentials.features import assistant_call
+
 
 # Ensure that db is ready ...
 init_db()
@@ -53,18 +61,25 @@ app = FastAPI(lifespan = app_lifespan)
 def welcome_msg():
     return {
         'message': 'Welcome to the Company_Info_Scraper V-1.0 API!',
-        'explore': {
-            'endpoint_1': '{{base}}/status',
-            'endpoint_2': '{{base}}/get-active-providers',
-            'endpoint_3': '{{base}}/reviews',
-            'endpoint_4': '{{base}}/stocks',
-            'endpoint_5': '{{base}}/news',
-            'testing_url': '{{base}}/docs'
-        }
+        'explore': JSONResponse(
+            content = {
+                'endpoint_1': '{{base}}/status',
+                'endpoint_2': '{{base}}/get-active-providers',
+                'endpoint_3': '{{base}}/reviews',
+                'endpoint_4': '{{base}}/stocks',
+                'endpoint_5': '{{base}}/news',
+                'endpoint_6': '{{base}}/overview',
+                'endpoint_7': '{{base}}/salary',
+                'endpoint_8': '{{base}}/location',
+                'endpoint_9': '{{base}}/social_media_handles',
+                'endpoint_10': '{{base}}/about',
+                'testing_url': '{{base}}/docs' 
+            }
+        )
     }
+    
 
-
-# Endpoint to get status code
+# endpoint to get status code
 @app.get('/status')
 def get_status():
     url = "http://127.0.0.1:8000/"
@@ -78,7 +93,7 @@ def get_status():
         }
 
 
-# Endpoint to get active api providers
+# endpoint to get active api providers
 @app.get('/get-active-providers')
 def get_active_api(db : Session = Depends(start_db_session)):
     # here, we are getting a DB session by calling start_db_session() automatically [dependency injection 'Depend'].
@@ -86,9 +101,9 @@ def get_active_api(db : Session = Depends(start_db_session)):
     print(active_providers)
     if not active_providers: # All exhausted
         raise HTTPException(status_code=429, detail='All the providers have reached their maximum limit.')
-    return {
+    return JSONResponse(content = {
         "active_providers": active_providers
-    }
+    })
 
 
 # endpoint to get employee sentiments
@@ -98,12 +113,12 @@ def get_reviews(company_name: str, job_title: str):
     status = get_status()
     # -------- Reviews section -------
     reviews = extract_reviews(company_name, job_title)
-    return {
+    return JSONResponse(content = {
         'status': status,
         'company_name': company_name.capitalize(),
         'job_title': job_title.capitalize(),
         'reviews': reviews
-    }
+    })
 
 
 # endpoint to get company stock information
@@ -183,6 +198,9 @@ def get_stocks(company_name: str, historical_insights = False, _plot: str = 'N',
         plt.figure(figsize=(15,8))
         plt.tight_layout()
         plt.legend(loc = 'best')
+        if(_download):
+            constructPlot()
+            plt.savefig(f"{ticker}_stock_data.svg", bbox_inches = 'tight')
 
     if(_plot):
         # convert plot to Base64-encoded image in JSON
@@ -194,11 +212,10 @@ def get_stocks(company_name: str, historical_insights = False, _plot: str = 'N',
         plot_64 = base64.b64encode(buf.read()).decode('utf-8')
         plt.close()
 
-    else: plot_64 = "(not specified by user)"
+    else: 
+        plot_64 = "(not specified by user)"
 
-    if(_download):
-            constructPlot()
-            plt.savefig(f"{ticker}_stock_data.svg", bbox_inches = 'tight')
+    
 
     return JSONResponse(content = {
         'company': company_name.capitalize(),
@@ -216,17 +233,190 @@ def get_stocks(company_name: str, historical_insights = False, _plot: str = 'N',
 
 # endpoint to get company's news
 @app.get('/news')
-def get_news(company_name: str, job_title: str):
+def get_news(company_name: str, field_of_interest: str):
+    '''Returns latest news influenced by company, field of interest and a mix of spicy criticisms, achievements and much more just in one go.
+    Consumes "1" request / call.
+    '''
     # ------- News section -------
-    news = extract_news(company_name, job_title)
+    news = extract_news(company_name, field_of_interest)
     
     return JSONResponse(
         content = {
             'company': company_name.capitalize(),
-            'job_title': job_title.capitalize(),
+            'field_of_interest': field_of_interest.capitalize(),
             'news_feed': news
         }
     )
+
+
+
+# endpoint to get company's overview
+@app.get('/overview')
+def get_company_overview(company_name: str, db : Session = Depends(start_db_session)):
+    ''' 
+    Returns the company's overview based on company_name. Each call consumes "3" requests (costly)
+    '''
+    try:
+        # get the active provider
+        active_providers = get_providers(db) # get active providers      
+        provider = next((p for p in active_providers if p.token_id == 'OVR'), None)
+        if provider:
+            company_overview = ov__1(company_name, db)
+            # company_overview = "fetching overview ..." # dummy statement
+            # check for errors
+        else:
+            raise HTTPException(status_code=429, detail='Too many requests ...')
+        # make changes visible in database
+        if('exception_status' not in company_overview):
+                provider.used_calls += 1
+        db.commit()
+        return JSONResponse(content = {
+            'company_name': company_name.capitalize(),
+            'overview': company_overview
+        })
+    
+    except Exception as e:
+        return JSONResponse(content = {
+            'message': 'Exception encountered while fetching results ...',
+            'exception_status': str(e)
+        })
+
+
+
+# endpoint to get company's salary + semantic matching enabled
+@app.get('/salary_estimation')
+def get_salary_estimation(company_name: str, job_title: str, location: str, db: Session = Depends(start_db_session)):
+    '''Returns salary estimates based on company, job role and location factors. Consumes "2" requests / call.'''
+    # reset the cache to remove outdated data
+    ''' search cache first and then proceed to calling api '''
+    reset_table(CACHE_SAL, db, 'company_name')
+    # perform a semantic match accross the cache database
+    matched_record : object = semantic_match(
+        db,
+        CACHE_SAL,
+        ['company_name', 'job_title', 'location'],
+        [company_name, job_title, location]
+    )
+    if(matched_record):
+        salary = matched_record.salary_data
+        print("\033[35m\033[1mGot the salary data from database\033[0m")
+        return JSONResponse(
+            content = {
+                'company_name': matched_record.company_name,
+                'job_title': matched_record.job_title,
+                'location': matched_record.location,
+                'salary_data': salary
+            }
+        )
+    # get the active provider
+    active_providers = get_providers(db)
+    # get the salary provider
+    provider = next((p for p in active_providers if p.token_id == 'SAL'), None)
+    if provider:
+        # fmap_ref = globals()[provider.provider]
+        # salary = fmap_ref(company_name, job_title, location) 
+        salary = "fetching salary ..."
+        # look for errors
+    else:
+        raise HTTPException(status_code=429, detail='Too many requests ...')
+    
+    if 'error' not in salary:
+        provider.used_calls+=2
+
+    # Add the record to cache
+    type = provider.type
+    confidence = provider.confidence
+    salary_cache_insert(
+        company_name.lower(), 
+        job_title.lower(), 
+        location.lower(), 
+        salary, 
+        type= type, 
+        confidence=confidence, 
+        db=db
+    )
+    db.commit()
+    return JSONResponse(
+        content = {
+            'company_name': company_name,
+            'job_title': job_title,
+            'location': location,
+            'salary_data': salary
+        })
+
+
+
+# endpoint to get company's offices + semantic matching enabled
+@app.get('/location')
+def get_work_locations(company_name: str, location: str, db: Session = Depends(start_db_session)):
+    ''' 
+    Returns company's operating locations based on region specified by user. It may take a while to load the data. But don't worry and sit upright and be ready !
+    Consumes "1" request / call
+    '''
+    try:
+        # first of all search the cache storage
+        # always reset the table first
+        reset_table(CACHE_MAP, db, _member = "company_name")
+        # now consider fetching location data
+        matched_record = semantic_match(
+            db,
+            CACHE_MAP, 
+            ['company_name', 'location'],
+            [company_name, location],
+        )
+        if(matched_record):
+            print("\033[35m\033[1mGot the location data from database\033[0m")
+            return JSONResponse(
+            content = {
+                'company_name': matched_record.company_name,
+                'location': matched_record.location,
+                'work_locations': matched_record.location_data,
+            }
+        )
+        # get the active provider
+        active_providers = get_providers(db)     
+        provider = next((p for p in active_providers if p.token_id == 'MAP'), None)
+        if provider:
+            fmap_ref = globals()[provider.name]
+            work_locations = fmap_ref(company_name, location)
+            # locations = "fetching locations ..." # dummy statement
+            # look for errors
+            if 'error' not in work_locations:
+                provider.used_calls+=1
+        else:
+            raise HTTPException(status_code=429, detail='Too many requests ...') 
+        
+        # check whether the data we got is accurate or not -> call assistant
+        cleaned_work_locations = assistant_call(work_locations)
+        print(cleaned_work_locations)
+        # if there is a need to clean work locations
+        if(cleaned_work_locations):
+            work_locations = cleaned_work_locations
+        # add to cache
+        generic_cache_insert(
+            db,
+            CACHE_MAP,
+            ['company_name', 'location', 'location_data'],
+            [company_name, location, work_locations],
+        )
+        return JSONResponse(
+            content = {
+                'company_name': company_name,
+                'location': location,
+                'work_locations': work_locations
+            }
+        )
+
+    except Exception as e:
+        return JSONResponse(content = {
+            'message': 'Exception encountered while fetching results ...',
+            'exception_status': str(e)
+        })
+
+
+
+
+
 
 # endpoint to get company information
 @app.get('/company-info')
@@ -285,7 +475,7 @@ def company_info(company_name: str, job_title: str, location: str, db : Session 
         raise HTTPException(status_code=429, detail='Too many requests ...')
     
     # ------- overview section -------
-    if(overview_list):
+    if(None):
         company_overview = overview_list
     else:
         provider = next((p for p in active_providers if p.token_id == 'ovr'), None)
