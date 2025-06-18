@@ -108,8 +108,7 @@ def ov__1(company_name : str, db : Session):
         # print(response.text)
     except Exception as e:
         return {
-            'message': 'Exception encountered while fetching results ...',
-            'exception_status': str(e)
+            'error': str(e)
         }
 def ov__2(company_name : str):
     pass
