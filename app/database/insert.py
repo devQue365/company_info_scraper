@@ -1,5 +1,6 @@
 from sentence_transformers import SentenceTransformer
 import numpy as np
+from datetime import datetime
 from app.database.models import CACHE_SAL
 from app.database.database import sessionLocal, init_db
 from sqlalchemy.orm import Session
@@ -41,3 +42,27 @@ def generic_cache_insert(
     db.add(entry)
     db.commit()
 
+
+def generic_insert(
+        db: Session,
+        model,
+        param_list: list,
+        param_values: list,
+):
+    entry = model(
+        **{param: value for param,value in zip(param_list, param_values)},
+    )
+    db.add(entry)
+    db.commit()
+
+def generic_delete(
+    db: Session,
+    model,
+    param_list: list,
+    param_values: list,
+):
+    # create a filter dictionary
+    filter_kwargs = {param: value for param, value in zip(param_list, param_values)}
+    # query and delete
+    db.query(model).filter_by(**filter_kwargs).delete()
+    db.commit()
