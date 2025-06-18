@@ -24,12 +24,12 @@ from app.overview import *
 from app.database.database import init_db, sessionLocal, start_db_session
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from app.database.models import CACHE_SAL, CACHE_OVR, CACHE_MAP
+from app.database.models import CACHE_SAL, CACHE_OVR, CACHE_MAP, TWT
 from app.leaf import tweet_init_leaf, map_init_leaf, salary_init_leaf, overview_init_leaf
 # API usage scheme
 from app.database.api_usage_scheme import get_providers
 # NLP processing
-from app.database.insert import generic_cache_insert
+from app.database.insert import generic_cache_insert, generic_insert, generic_delete
 from app.Salary.insert import salary_cache_insert
 from app.Essentials.semantic_similarity import semantic_match
 from app.Essentials.features import assistant_call
@@ -58,7 +58,7 @@ app = FastAPI(lifespan = app_lifespan)
 
 # Use : start_db_session()
 @app.get("/")
-def welcome_msg():
+def root():
     return {
         'message': 'Welcome to the Company_Info_Scraper V-1.0 API!',
         'explore': JSONResponse(
@@ -71,8 +71,8 @@ def welcome_msg():
                 'endpoint_6': '{{base}}/overview',
                 'endpoint_7': '{{base}}/salary',
                 'endpoint_8': '{{base}}/location',
-                'endpoint_9': '{{base}}/social_media_handles',
-                'endpoint_10': '{{base}}/about',
+                'endpoint_9': '{{base}}/twitter_handle',
+                'endpoint_10': '{{base}}/financials',
                 'testing_url': '{{base}}/docs' 
             }
         )
@@ -277,8 +277,7 @@ def get_company_overview(company_name: str, db : Session = Depends(start_db_sess
     
     except Exception as e:
         return JSONResponse(content = {
-            'message': 'Exception encountered while fetching results ...',
-            'exception_status': str(e)
+            'error': str(e)
         })
 
 
@@ -412,6 +411,72 @@ def get_work_locations(company_name: str, location: str, db: Session = Depends(s
             'message': 'Exception encountered while fetching results ...',
             'exception_status': str(e)
         })
+
+@app.get('/twitter_handle')
+# endpoint to get company's tweets
+def get_tweets(company_name: str, job_title: str, limit:int = 5, db: Session = Depends(start_db_session)):
+    # add new twitter records
+    # generic_insert(
+    #     db,
+    #     TWT,
+    #     ['name', 'provider', 'used_calls', 'total_calls', 'reset_type', 'last_reset'],
+    #     ['twt__5', 'twitter_api', 0, 100, 'M', datetime.now()],
+    # )
+    # get the active provider
+    active_providers = get_providers(db)
+    provider = next((p for p in active_providers if p.token_id == 'TWT'), None)
+    if provider:
+        fmap_ref = globals()[provider.name]
+        tweets = fmap_ref(company_name, job_title, limit)
+        # tweets = twt__5(company_name, job_title, limit)
+        # tweets = "fetching tweets ..." # dummy statement
+        # if 'error' not in tweets:
+            # provider.used_calls+=1
+    else:
+        raise HTTPException(status_code=429, detail='Too many requests ...')
+
+    return JSONResponse(
+        content = {
+            'company_name': company_name,
+            'tweets': tweets
+        }
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
