@@ -19,3 +19,29 @@
 ![SQLite snapshot](/img/ss1.png)
 - Here as we can see Jsearch API could not fetch the result and thus, we hopped on to the next available active API (here GlassDoor API).<br>
 >**Note:** Here I have initially considered the ```used_requests = 0``` for simplicity and testing.
+
+## <u>**Locations**</u>
+**The API services utlized in providing this information are :-**
+- ```gm__1 (Google Map Places)```<br>
+    - Threshold - 100 requests / Day
+    - Gives rich data result.
+    - checked ```establishment``` and ```point_of_interest```
+- ```gm__2 (Google Map Scraper)```<br>
+    - Threshold - 1000 requests / MO
+    - Rich data set.
+
+- ```gm__backup (Google Place Autocomplete and Place Info API)```
+    - Threshold - 1000 requests / MO
+    - Less rich data set.
+    - checked ```establishment``` and ```point_of_interest```
+## <u>**Tweets**</u>
+- ```twt__1 (twttr API)```
+    - Threshold - 500 requests / MO
+- ```twt__2 (Twitter API unofficial)```
+    - Threshold - 1000 requests / MO
+- ```twt__3 (Twitter AIO)```
+    - Threshold - 300 requests / MO
+- ```twt__4 (Old Bird)```
+    - Threshold - 500 requests / MO
+- ```twt__5 (Twitter API RapidAPI)```
+    - Threshold - 100 requests / MO
