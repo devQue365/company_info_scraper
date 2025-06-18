@@ -14,7 +14,7 @@ class TWT(Base):
     total_calls = Column(Integer, nullable = False)
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
-    last_reset = Column(DateTime, nullable = False)
+    last_reset = Column(DateTime, default = func.now())
     token_id = Column(String, default = 'TWT', nullable = False)
 
 
@@ -28,7 +28,7 @@ class MAP(Base):
     total_calls = Column(Integer, nullable = False)
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
-    last_reset = Column(DateTime, nullable = False)
+    last_reset = Column(DateTime, default = func.now())
     token_id = Column(String, default = 'MAP', nullable = False)
 
 
@@ -54,7 +54,7 @@ class SAL(Base):
     total_calls = Column(Integer, nullable = False)
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
-    last_reset = Column(DateTime, nullable = False)
+    last_reset = Column(DateTime, default = func.now())
     type = Column(String, default= 'E', nullable = False)  # type of salary data (e.g., hourly, annual)
     confidence = Column(Integer, default = 0)  # confidence score for salary data
     token_id = Column(String, default = 'SAL', nullable = False)
@@ -86,7 +86,7 @@ class OVR(Base):
     total_calls = Column(Integer, nullable = False)
     reset_type = Column(String, nullable = False)
     # We have to store a time stamp value for last reset
-    last_reset = Column(DateTime, nullable = False)
+    last_reset = Column(DateTime, default = func.now())
     token_id = Column(String, default = 'OVR', nullable = False)
 
 # Store company's overview (static in nature)
