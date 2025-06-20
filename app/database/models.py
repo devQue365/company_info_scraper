@@ -97,8 +97,15 @@ class CACHE_OVR(Base):
     reset_type = Column(CHAR, default = 'M', nullable = False) # monthly reset
     last_reset = Column(DateTime, default = func.now())
 
-
-
+class CACHE_RVW(Base):
+    __tablename__ = "CACHE__RVW"
+    Id = Column(Integer, primary_key = True, index = True)
+    company_name = Column(String, nullable = False)
+    job_title = job_title = Column(String, nullable = False)
+    review_information = Column(JSON)
+    reset_type = Column(CHAR, default = 'W', nullable = False) # weekly reset
+    last_reset = Column(DateTime, default = func.now())
+    embedded_data = Column(Text)  # we will be adding a comma sperated vector in this column
 
 # create them
 # Base.metadata.create_all(bind = None)
