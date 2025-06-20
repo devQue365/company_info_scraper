@@ -21,19 +21,19 @@ from app.tweets import *
 # overview module
 from app.overview import *
 # database module
-from app.database.database import init_db, sessionLocal, start_db_session
+from app.database.database import init_db, engine, start_db_session
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from app.database.models import CACHE_SAL, CACHE_OVR, CACHE_MAP, TWT
+from app.database.models import CACHE_SAL, CACHE_OVR, CACHE_MAP, TWT, CACHE_RVW, Base
 from app.leaf import tweet_init_leaf, map_init_leaf, salary_init_leaf, overview_init_leaf
 # API usage scheme
 from app.database.api_usage_scheme import get_providers
+
 # NLP processing
-from app.database.insert import generic_cache_insert, generic_insert, generic_delete
+from app.database.insert import generic_cache_insert, generic_insert, generic_delete, delete_table, delete_all_tables
 from app.Salary.insert import salary_cache_insert
 from app.Essentials.semantic_similarity import semantic_match
 from app.Essentials.features import assistant_call
-
 
 # Ensure that db is ready ...
 init_db()
@@ -42,7 +42,11 @@ init_db()
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     print('\033[32m\033[1mSession started ...\033[0m')
+    def create_all_tables():
+        Base.metadata.create_all(bind=engine)
     with next(start_db_session()) as db:
+        delete_all_tables(engine)
+        create_all_tables() # add missing tables if applicable
         tweet_init_leaf(db) # To initialize the tweet leaf
         map_init_leaf(db) # T initialize the map leaf
         salary_init_leaf(db) # To initialize the salary leaf
@@ -108,13 +112,41 @@ def get_active_api(db : Session = Depends(start_db_session)):
 
 # endpoint to get employee sentiments
 @app.get('/reviews')
-def get_reviews(company_name: str, job_title: str):
-    # ------- Status code -------
-    status = get_status()
+def get_reviews(company_name: str, job_title: str, db: Session = Depends(start_db_session)):
+    #  # reset the cache to remove outdated data
+    # delete_table(CACHE_RVW, engine)
+    ''' search cache first and then proceed to calling api '''
+    reset_table(CACHE_RVW, db, 'company_name')
+    # perform a semantic match accross the cache database
+    matched_record : object = semantic_match(
+        db,
+        CACHE_RVW,
+        ['company_name', 'job_title'],
+        [company_name, job_title]
+    )
+    if(matched_record):
+        review = matched_record.review_information
+        print("\033[35m\033[1mGot the review information from database\033[0m")
+        return JSONResponse(
+            content = {
+                'company_name': matched_record.company_name,
+                'job_title': matched_record.job_title,
+                'reviews': review
+            }
+        )
     # -------- Reviews section -------
     reviews = extract_reviews(company_name, job_title)
+    # reviews = 'reviews extracted'
+
+
+    # add to cache
+    generic_cache_insert(
+        db,
+        CACHE_RVW,
+        ['company_name', 'job_title', 'review_information'],
+        [company_name, job_title, reviews],
+    )
     return JSONResponse(content = {
-        'status': status,
         'company_name': company_name.capitalize(),
         'job_title': job_title.capitalize(),
         'reviews': reviews
@@ -386,11 +418,11 @@ def get_work_locations(company_name: str, location: str, db: Session = Depends(s
             raise HTTPException(status_code=429, detail='Too many requests ...') 
         
         # check whether the data we got is accurate or not -> call assistant
-        cleaned_work_locations = assistant_call(work_locations)
-        print(cleaned_work_locations)
+        # cleaned_work_locations = assistant_call(work_locations)
+        # print(cleaned_work_locations)
         # if there is a need to clean work locations
-        if(cleaned_work_locations):
-            work_locations = cleaned_work_locations
+        # if(cleaned_work_locations):
+        #     work_locations = cleaned_work_locations
         # add to cache
         generic_cache_insert(
             db,
