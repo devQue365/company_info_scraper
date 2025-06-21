@@ -5,6 +5,7 @@ from app.database.database import sessionLocal, init_db
 from sqlalchemy.orm import Session
 import re
 import torch
+import json
 
 # initialize the database
 init_db()
@@ -19,9 +20,10 @@ def cosine_similarity(vec1, vec2):
     # return cos(theeta) =  (a.b)/(|a|.|b|)
     return np.dot(vec1, vec2)/(np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
-def string_to_vector(text: str):
-    '''Converts comma separated vector string into a numpy array.'''
-    return np.array(list(map(float, text.split(','))))
+def encode_text_to_vector(text: str, embed_model: SentenceTransformer):
+    vec = embed_model.encode(text)
+    return vec / np.linalg.norm(vec)  # we will be normalizing manually
+
 
 def normalize_text(text):
     '''Lowercase, strip, and remove punctuation for consistent embeddings.'''
@@ -31,31 +33,34 @@ def normalize_text(text):
 
 # now, main logic to perform semantic matching based on user inputted args
 def semantic_match(
-        db: Session,
-        model, # the ORM model to be used
-        param_names = [], # list of parameter names
-        param_values = [], # list of parameter values
-        embedding_field: str = 'embedded_data',
-        threshold: float = 0.7
-    ) -> object:
-    # step_1: Combine the parameters into a single string to be used for embedding
-    param_text_format = " | ".join(
-        f"{name}: {normalize_text(str(value))}" for name, value in zip(param_names, param_values)
+    db: Session,
+    model,
+    param_names: list,
+    param_values: list,
+    embedding_field: str = 'embedded_data',
+    threshold: float = 0.65,
+    embedding_model: SentenceTransformer = embedding_model
+):
+    text = " | ".join(
+        f"{k}: {normalize_text(str(v))}" for k, v in zip(param_names, param_values)
     )
-    print("param_text_format:", param_text_format)
-    # encode the stored vector using embedding model
-    with torch.no_grad():
-        ip_param_vec = embedding_model.encode(param_text_format, normalize_embeddings=True)
+    ip_vec = encode_text_to_vector(text, embedding_model)
 
-    # retreive all the records from cache storage
     records = db.query(model).all()
-    # iterate through each record and check for semantic match
-    for record in records:
-        # get the embedded vector
-        stored_param_vector = string_to_vector(getattr(record, embedding_field))
-        # check for cosine similarity -> whether they are pointing in the same direction or not
-        cos_similarity = cosine_similarity(ip_param_vec, stored_param_vector)
-        # compare with threshold value (default = 0.85)
-        if(cos_similarity >= threshold):
-            return record
+    results = []
+    for rec in records:
+        try:
+            stored_vec = np.array(json.loads(getattr(rec, embedding_field)))
+            sim = cosine_similarity(ip_vec, stored_vec)
+            results.append((rec, sim))
+        except Exception as e:
+            print(f"Invalid embedding in record {rec.Id}: {e}")
+
+    if not results:
+        return None
+
+    # get best match
+    best_match = max(results, key=lambda x: x[1])
+    if best_match[1] >= threshold:
+        return best_match[0]
     return None
