@@ -5,52 +5,64 @@ from app.database.database import sessionLocal, init_db, Base
 from sqlalchemy.orm import Session
 import torch
 import re
+import json
+import random
 # initialize the database
 init_db()
 db: Session = sessionLocal
 
+# global seed settings
+random.seed(101)
+np.random.seed(101)
+torch.manual_seed(101)
+torch.use_deterministic_algorithms(True)
+
 # we will be using 'all-MiniLM-L6-v2' sentence transformer model
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 embedding_model.eval()
-# first of all we want to get text from parameters like (abc, devops, new york) -> "abc devops newyork" [lowercased]
-def getTextFromParams(param_values):
-    # return f"{company_name} {job_title} {location}".lower()
-    return " ".join(str(v).lower() for v in param_values)
-
-# now, we also want a helper function to convert vector object back to string object
-def getStringFromVector(vec):
-    return ','.join(map(str, vec))
-
-# now, we will be implementing insertion operation
-def generic_cache_insert(
-        db: Session,
-        model,
-        param_list: list, # list of params
-        param_values: list, # list of param values 
-    ):
-    # get the text form of params
-    text_params = " | ".join(
-        f"{name}: {normalize_text(str(value))}" for name, value in zip(param_list, param_values)
-    )
-    # embed the textual information to vector format
-    with torch.no_grad():
-        vec = embedding_model.encode(text_params, normalize_embeddings=True)
-    # get the instance type from string
-    # param_list = [lambda x: locals()[x] for x in param_list]
-    # create a new entry
-    entry = model(
-        # assign values
-        **{param: value for param, value in zip(param_list, param_values)},
-        embedded_data = getStringFromVector(vec)
-    )
-    db.add(entry)
-    db.commit()
 
 def normalize_text(text):
     '''Lowercase, strip, and remove punctuation for consistent embeddings.'''
     text = text.lower().strip()
     text = re.sub(r'[^\w\s]', '', text)  # remove punctuation
     return text
+
+def encode_text_to_vector(text: str, embed_model: SentenceTransformer):
+    vec = embed_model.encode(text)
+    return vec / np.linalg.norm(vec)  # we will be normalizing manually
+
+
+# now, we will be implementing insertion operation
+def generic_cache_insert(
+    db: Session,
+    model,
+    param_list: list,
+    param_values: list,
+    embedding_field: str = 'embedded_data',
+    embedding_model: SentenceTransformer = embedding_model,
+) -> True | False:
+    ''' Returns True if it is required to insert record in cache table or else False given that the record aldready exists '''
+    text = " | ".join(
+        f"{k}: {normalize_text(str(v))}" for k, v in zip(param_list, param_values)
+    )
+    vec = encode_text_to_vector(text, embedding_model)
+
+    # First let us check if the record exists
+    filters = {param: value for param, value in zip(param_list, param_values)}
+    if db.query(model).filter_by(**filters).first():
+        print("Already exists.")
+        return False
+
+    # insert the record in perch table
+    entry = model(
+        **filters,
+        **{embedding_field: json.dumps(vec.tolist())}
+    )
+    db.add(entry)
+    db.commit()
+    return True
+
+
 
 def generic_insert(
         db: Session,
@@ -63,6 +75,7 @@ def generic_insert(
     )
     db.add(entry)
     db.commit()
+
 
 def generic_delete(
     db: Session,
