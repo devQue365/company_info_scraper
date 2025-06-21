@@ -105,9 +105,9 @@ def get_active_api(db : Session = Depends(start_db_session)):
     print(active_providers)
     if not active_providers: # All exhausted
         raise HTTPException(status_code=429, detail='All the providers have reached their maximum limit.')
-    return JSONResponse(content = {
+    return {
         "active_providers": active_providers
-    })
+    }
 
 
 # endpoint to get employee sentiments
@@ -119,10 +119,10 @@ def get_reviews(company_name: str, job_title: str, db: Session = Depends(start_d
     reset_table(CACHE_RVW, db, 'company_name')
     # perform a semantic match accross the cache database
     matched_record : object = semantic_match(
-        db,
-        CACHE_RVW,
-        ['company_name', 'job_title'],
-        [company_name, job_title]
+        db=db,
+        model=CACHE_RVW,
+        param_names=['company_name', 'job_title'],
+        param_values=[company_name, job_title]
     )
     if(matched_record):
         review = matched_record.review_information
@@ -141,10 +141,10 @@ def get_reviews(company_name: str, job_title: str, db: Session = Depends(start_d
 
     # add to cache
     generic_cache_insert(
-        db,
-        CACHE_RVW,
-        ['company_name', 'job_title', 'review_information'],
-        [company_name, job_title, reviews],
+        db=db,
+        model=CACHE_RVW,
+        param_list=['company_name', 'job_title', 'review_information'],
+        param_values=[company_name, job_title, reviews],
     )
     return JSONResponse(content = {
         'company_name': company_name.capitalize(),
