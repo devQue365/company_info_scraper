@@ -28,7 +28,9 @@ def get_proxies(file_path: __file__):
                         'pass': row['Pass'].strip()
                     }
                     # get the url -> https://username:password:host:port
-                    proxy_url = f"socks5://{proxy_record['user']}:{proxy_record['pass']}@{proxy_record['host']}:{proxy_record['port']}"
+                    proxy_url = f"http://{proxy_record['user']}:{proxy_record['pass']}@{proxy_record['host']}:{proxy_record['port']}"
+                    # proxy_url = f"http://{proxy_record['host']}:{proxy_record['port']}"
+
                     proxy_collection.append(proxy_url)
         return proxy_collection
     except Exception as e:
