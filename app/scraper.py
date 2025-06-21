@@ -21,6 +21,7 @@ import os
 from datetime import datetime
 # from app.Parser import customizedParser
 import urllib.parse
+import random
 from app.Essentials.features import assistant_call
 
 def extract_about(company_name):
@@ -176,11 +177,13 @@ def extract_reviews(company_name, job_title):
     options = uc.ChromeOptions()
     # fetch proxy
     proxy_cred = fetch_proxy("/home/devansh-rathore/Desktop/scraping/app/proxies.csv")
-    print(proxy_cred[0], proxy_cred[1])
+    proxy_ggl = proxy_cred[1].split('@')[1]
+    proxy_url = f"http://{proxy_ggl}"
+    print(proxy_url, proxy_cred[1])
     # configure options
-    # options.add_argument(f"--proxy-server={proxy_cred[0]}")
+    options.add_argument(f"--proxy-server={proxy_url}")
     # --- for disabling automation flags ---
-    # options.add_argument(f"--user-agent={proxy_cred[1]}")
+    options.add_argument(f"--user-agent={proxy_cred[1]}")
     options.add_argument("--diable-blink-features=AutomationControlled")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-infobars")
@@ -205,7 +208,7 @@ def extract_reviews(company_name, job_title):
     url = f"https://www.google.com/search?{url_safe_query}"
 
     driver.get(url)
-    time.sleep(3)
+    time.sleep(random.uniform(5, 10))
     # take screenshot
     driver.save_screenshot(f"review_debug_ss/debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
 
